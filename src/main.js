@@ -1,13 +1,14 @@
 import './style.css'
 import { render, validate, THEMES } from './render.js'
 import { EXAMPLES } from './examples.js'
-import { pngSize, svgToPngBlob, copyPng, copyText, download } from './export.js'
+import { pngSize, svgToPngBlob, copyPng, copyText, download, flattenSvg, buildHtmlWidget, HTML_WIDGET_LIMIT } from './export.js'
+import { CJK_STACK } from './render.js'
 
 const $ = (id) => document.getElementById(id)
 const els = {
   source: $('source'), stage: $('stage'), error: $('error'), renderer: $('renderer'), size: $('size'),
   theme: $('theme'), scale: $('scale'), example: $('example'), toast: $('toast'),
-  copyPng: $('copy-png'), downloadPng: $('download-png'), copySvg: $('copy-svg'), copySrc: $('copy-src'),
+  copyPng: $('copy-png'), downloadPng: $('download-png'), copySvg: $('copy-svg'), copySrc: $('copy-src'), copyHtml: $('copy-html'),
 }
 const LS = { src: 'mf.source', theme: 'mf.theme', scale: 'mf.scale' }
 const THEME_LABELS = {
@@ -60,6 +61,7 @@ async function update() {
     const res = await render(code, state.theme)
     if (my !== renderSeq) return
     state.svg = res.svg
+    state.flat = null
     state.renderer = res.renderer
     els.stage.innerHTML = res.svg
     els.renderer.textContent = res.renderer
@@ -93,7 +95,7 @@ async function update() {
 }
 function setOk(ok) {
   state.ok = ok
-  for (const b of [els.copyPng, els.downloadPng, els.copySvg]) b.disabled = !ok
+  for (const b of [els.copyPng, els.downloadPng, els.copySvg, els.copyHtml]) b.disabled = !ok
 }
 function updateSize() {
   if (!state.svg) return
@@ -122,7 +124,12 @@ els.example.addEventListener('change', () => {
 
 // ---------- 复制 / 下载 ----------
 function pngName() { return `mermaid-${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')}@${state.scale}x.png` }
-function makePng() { return svgToPngBlob(state.svg, state.scale, THEMES[state.theme].bg) }
+function flat() {
+  if (!state.flat) state.flat = flattenSvg(state.svg, THEMES[state.theme].bg)
+  return state.flat
+}
+function htmlWidget() { return buildHtmlWidget(flat(), THEMES[state.theme].bg, CJK_STACK) }
+function makePng() { return svgToPngBlob(flat(), state.scale, THEMES[state.theme].bg) }
 
 els.copyPng.addEventListener('click', async () => {
   if (!state.ok) return
@@ -141,13 +148,29 @@ els.downloadPng.addEventListener('click', async () => {
 })
 els.copySvg.addEventListener('click', async () => {
   if (!state.ok) return
-  try { await copyText(state.svg); toast('SVG 源码已复制（注意：飞书文档不支持 SVG 图片）', 3000) } catch (e) { toast('复制失败：' + e.message) }
+  try { await copyText(flat()); toast('独立 SVG 已复制，可导入飞书画板（飞书文档图片不支持 SVG）', 3000) } catch (e) { toast('复制失败：' + e.message) }
+})
+els.copyHtml.addEventListener('click', async () => {
+  if (!state.ok) return
+  try {
+    const html = htmlWidget()
+    const size = new Blob([html]).size
+    await copyText(html)
+    const kb = (size / 1024).toFixed(1)
+    if (size > HTML_WIDGET_LIMIT) {
+      els.error.hidden = false; els.error.classList.add('warn')
+      els.error.textContent = `HTML 已复制，但有 ${kb} KB，超过飞书 HTML 小组件 500 KB 上限，可能贴不进去。建议改用 PNG。`
+      toast(`HTML ${kb} KB，超过 500 KB 上限！`, 4000)
+    } else {
+      toast(`HTML 小组件代码已复制（${kb} KB）`)
+    }
+  } catch (e) { toast('复制失败：' + (e.message || e)) }
 })
 els.copySrc.addEventListener('click', async () => {
   try { await copyText(els.source.value); toast('Mermaid 源码已复制，可粘进飞书「文本绘图」') } catch (e) { toast('复制失败：' + e.message) }
 })
 
 // 给自动化测试用
-window.__mf = { state, render, makePng, pngSize, EXAMPLES, update }
+window.__mf = { state, render, makePng, pngSize, EXAMPLES, update, flat, htmlWidget }
 
 update()
