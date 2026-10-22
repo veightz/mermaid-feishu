@@ -109,7 +109,7 @@ SVG（原始内容，保存成文件）：
 ```bash
 curl -s https://mermaid-feishu.pages.dev/api/render \
   -H 'Content-Type: application/json' \
-  -d '{"code":"flowchart TD\n  A[提交需求] --> B{评审通过?}\n  B -->|是| C[开发]\n  B -->|否| A","theme":"feishu-light"}' \
+  -d '{"code":"flowchart TD\n  A[提交需求] --> B{评审通过?}\n  B -->|是| C[开发]\n  B -->|否| D[退回修改]","theme":"feishu-light"}' \
   -o diagram.svg
 ```
 
