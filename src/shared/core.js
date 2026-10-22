@@ -51,7 +51,23 @@ export function isBMSupported(code) { return BM_HEADERS.test(firstLine(code)) }
 const FONT_TOKEN = '__MF_CJK__'
 
 // beautiful-mermaid 不会去掉 xychart 轴标签两边的引号，而官方 mermaid 要求中文标签加引号。
+// 流程图支持用 ; 分隔语句（如 `graph LR; A --> B`），beautiful-mermaid 不认，这里拆成多行（括号/引号/|标签| 内的 ; 不拆）
+function splitSemicolons(code) {
+  let out = '', depth = 0, quote = false, pipe = false
+  for (const ch of code) {
+    if (ch === '"') quote = !quote
+    else if (!quote && ch === '|') pipe = !pipe
+    else if (!quote && !pipe && '[({'.includes(ch)) depth++
+    else if (!quote && !pipe && '])}'.includes(ch)) depth = Math.max(0, depth - 1)
+    if (ch === ';' && !quote && !pipe && depth === 0) { out += '\n'; continue }
+    if (ch === '\n') { quote = false; pipe = false; depth = 0 }
+    out += ch
+  }
+  return out
+}
+
 export function preprocessBM(code) {
+  if (/^\s*(graph|flowchart)\b/.test(firstLine(code)) && code.includes(';')) code = splitSemicolons(code)
   if (!/^\s*xychart/m.test(code)) return code
   return code.replace(/^(\s*[xy]-axis\b[^\[\n]*)\[([^\]\n]*)\]/gm, (_, head, items) =>
     head + '[' + items.split(',').map((x) => x.trim().replace(/^"(.*)"$/, '$1')).join(', ') + ']')
