@@ -35,6 +35,19 @@
 beautiful-mermaid 报错时也会回退 mermaid.js。预览标题旁的小标签会显示这次用的是哪个渲染器。
 beautiful-mermaid 对看不懂的行会静默跳过，所以页面还会用官方解析器再检查一遍，有问题时显示黄色「语法提示」。
 
+## 给 Agent 用的 API
+
+无需鉴权、CORS 开放，完整说明见 [SKILL.md](https://mermaid-feishu.pages.dev/SKILL.md)（也有 [llms.txt](https://mermaid-feishu.pages.dev/llms.txt)）。
+
+- `POST /api/render`：JSON `{ code, format: "svg" | "html", theme? }`，返回 `image/svg+xml` 或 `text/html`；`?json=1` 返回 JSON 包装。也支持 `GET /api/render?code=&format=&theme=`。
+- `GET /api/themes`、`GET /api/health`。
+- 服务端只用 beautiful-mermaid（Cloudflare Pages Functions，代码在 `functions/`，和网页共用 `src/shared/core.js`）。甘特图、饼图等返回 422，请用网页；`format=png` 返回 501（PNG 请在网页上生成）；源码上限 50KB（413）。
+
+```bash
+curl -s https://mermaid-feishu.pages.dev/api/render -H 'Content-Type: application/json' \
+  -d '{"code":"flowchart LR\n  A[开始] --> B[结束]","format":"svg"}' -o diagram.svg
+```
+
 ## PNG 尺寸与中文字体
 
 - 飞书正文宽约 820px。PNG 的宽度 = min(图原始宽度, 820) × 倍率；更宽的图等比缩小。

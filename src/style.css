@@ -11,6 +11,8 @@ body { font-family: var(--cjk); color: #1f2329; background: #f5f6f7; display: fl
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; background: #fff; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
 .brand { font-weight: 600; font-size: 16px; }
 .brand .sub { font-weight: 400; font-size: 13px; color: var(--muted); margin-left: 8px; }
+.agent-link { font-size: 12px; font-weight: 500; color: var(--brand); text-decoration: none; margin-left: 10px; padding: 2px 8px; border: 1px solid #c9d8ff; border-radius: 10px; background: #f0f4ff; }
+.agent-link:hover { background: #e1eaff; }
 .controls { display: flex; gap: 12px; flex-wrap: wrap; }
 .controls label { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
 select, button { font: inherit; font-size: 13px; border: 1px solid var(--border); border-radius: 6px; background: #fff; padding: 5px 10px; color: #1f2329; cursor: pointer; }

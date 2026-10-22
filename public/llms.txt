@@ -1,0 +1,24 @@
+# Mermaid 转飞书 (mermaid-feishu)
+
+> 把 Mermaid 渲染成适合飞书（Feishu / Lark）文档的好看 SVG 或自包含 HTML。无需鉴权，CORS 开放。PNG 请用网页生成。
+> Render Mermaid into clean SVG or self-contained HTML for Feishu docs. No auth, CORS *. PNG only via the website.
+
+## Docs
+
+- [SKILL.md](https://mermaid-feishu.pages.dev/SKILL.md): 完整说明——接口、参数、主题、请求/响应示例、支持的图类型、在飞书里怎么用、Agent 安装方法
+
+## API
+
+- [POST /api/render](https://mermaid-feishu.pages.dev/api/render): JSON `{ code, format: "svg"|"html", theme? }` → `image/svg+xml` 或 `text/html`；`?json=1` 返回 JSON 包装；源码上限 50KB
+- [GET /api/render?code=&format=&theme=](https://mermaid-feishu.pages.dev/api/render): 短源码用 GET
+- [GET /api/themes](https://mermaid-feishu.pages.dev/api/themes): 主题列表（默认 feishu-light）
+- [GET /api/health](https://mermaid-feishu.pages.dev/api/health): 健康检查
+
+## Supported (API)
+
+flowchart/graph, sequenceDiagram, stateDiagram(-v2), classDiagram, erDiagram, xychart-beta. 其他类型（gantt、pie、mindmap、timeline……）返回 422，请用网页：https://mermaid-feishu.pages.dev
+
+## Optional
+
+- [网页](https://mermaid-feishu.pages.dev): 实时预览、复制 PNG（2x/3x）、复制 SVG、复制 HTML 小组件
+- [源码](https://github.com/veightz/mermaid-feishu): MIT

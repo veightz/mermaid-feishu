@@ -1,8 +1,8 @@
 import './style.css'
 import { render, validate, THEMES, DEFAULT_THEME } from './render.js'
 import { EXAMPLES } from './examples.js'
-import { pngSize, svgToPngBlob, copyPng, copyText, download, flattenSvg, buildHtmlWidget, HTML_WIDGET_LIMIT } from './export.js'
-import { CJK_STACK } from './render.js'
+import { pngSize, svgToPngBlob, copyPng, copyText, download, cleanSvg, buildHtmlWidget, HTML_WIDGET_LIMIT } from './export.js'
+import { THEME_LABELS } from './shared/core.js'
 
 const $ = (id) => document.getElementById(id)
 const els = {
@@ -11,13 +11,6 @@ const els = {
   copyPng: $('copy-png'), downloadPng: $('download-png'), copySvg: $('copy-svg'), copySrc: $('copy-src'), copyHtml: $('copy-html'),
 }
 const LS = { src: 'mf.source', theme: 'mf.theme', scale: 'mf.scale' }
-const THEME_LABELS = {
-  'feishu-light': '飞书白（默认）', 'feishu-gray': '飞书浅灰', 'soft-sage': '淡雅灰绿',
-  'zinc-light': '简洁浅色', 'github-light': 'GitHub 浅色', 'nord-light': 'Nord 浅色', 'tokyo-night-light': 'Tokyo Night 浅色',
-  'catppuccin-latte': 'Catppuccin Latte', 'solarized-light': 'Solarized 浅色', 'zinc-dark': '简洁深色', 'github-dark': 'GitHub 深色',
-  'tokyo-night': 'Tokyo Night', 'tokyo-night-storm': 'Tokyo Night Storm', 'catppuccin-mocha': 'Catppuccin Mocha', nord: 'Nord',
-  dracula: 'Dracula', 'solarized-dark': 'Solarized 深色', 'one-dark': 'One Dark',
-}
 
 const state = { svg: '', renderer: '', theme: DEFAULT_THEME, scale: 2, ok: false }
 
@@ -126,10 +119,10 @@ els.example.addEventListener('change', () => {
 // ---------- 复制 / 下载 ----------
 function pngName() { return `mermaid-${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')}@${state.scale}x.png` }
 function flat() {
-  if (!state.flat) state.flat = flattenSvg(state.svg, THEMES[state.theme].bg)
+  if (!state.flat) state.flat = cleanSvg(state.svg, THEMES[state.theme].bg)
   return state.flat
 }
-function htmlWidget() { return buildHtmlWidget(flat(), THEMES[state.theme].bg, CJK_STACK) }
+function htmlWidget() { return buildHtmlWidget(flat(), THEMES[state.theme].bg) }
 function makePng() { return svgToPngBlob(flat(), state.scale, THEMES[state.theme].bg) }
 
 els.copyPng.addEventListener('click', async () => {

@@ -1,68 +1,8 @@
-import { renderMermaidSVG, THEMES as BM_THEMES } from 'beautiful-mermaid'
+import {
+  THEMES, DEFAULT_THEME, CJK_STACK, isBMSupported, renderBM, mix, isDark,
+} from './shared/core.js'
 
-// 自定义浅色主题：白底 / 浅灰底、细线、低饱和，贴近飞书文档观感（soft = 饼图等用低饱和色板）
-export const CUSTOM_THEMES = {
-  'feishu-light': { bg: '#FFFFFF', fg: '#1F2329', line: '#BBBFC4', accent: '#7A8BA8', muted: '#646A73', surface: '#F7F8FA', border: '#DEE0E3', soft: true },
-  'feishu-gray': { bg: '#F5F6F7', fg: '#1F2329', line: '#B5B9BF', accent: '#7D8A9C', muted: '#646A73', surface: '#FFFFFF', border: '#DADCE0', soft: true },
-  'soft-sage': { bg: '#FFFFFF', fg: '#2B312D', line: '#BCC5BE', accent: '#7E9A86', muted: '#66706A', surface: '#F6F8F6', border: '#DCE2DD', soft: true },
-}
-export const DEFAULT_THEME = 'feishu-light'
-export const THEMES = { ...CUSTOM_THEMES, ...BM_THEMES }
-const themeColors = (t) => { const { soft, ...c } = t; return c }
-
-// 中文优先的系统字体栈：SVG 以 <img> 栅格化时拿不到网页字体，只能用系统字体，
-// 所以这里只列各平台自带/常见的中文字体，不依赖任何网络字体。
-export const CJK_STACK = `-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', 'WenQuanYi Micro Hei', 'Segoe UI', sans-serif`
-export const MONO_STACK = `'JetBrains Mono', 'SF Mono', Menlo, Consolas, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans Mono CJK SC', 'Noto Sans CJK SC', monospace`
-
-// beautiful-mermaid 支持的图（按首行关键字判断）
-const BM_HEADERS = /^(graph|flowchart|stateDiagram(-v2)?|sequenceDiagram|classDiagram|erDiagram|xychart(-beta)?)\b/
-
-function firstLine(code) {
-  for (const raw of code.split('\n')) {
-    const l = raw.trim()
-    if (!l || l.startsWith('%%')) continue
-    if (l === '---') return '' // front-matter，交给 mermaid.js
-    return l
-  }
-  return ''
-}
-
-const FONT_TOKEN = '__MF_CJK__'
-
-// beautiful-mermaid 不会去掉 xychart 轴标签两边的引号，而官方 mermaid 要求中文标签加引号。
-// 这里在交给 beautiful-mermaid 前去掉 [ ... ] 里的引号，两边写法都能好看。
-function preprocessBM(code) {
-  if (!/^\s*xychart/m.test(code)) return code
-  return code.replace(/^(\s*[xy]-axis\b[^\[\n]*)\[([^\]\n]*)\]/gm, (_, head, items) =>
-    head + '[' + items.split(',').map((x) => x.trim().replace(/^"(.*)"$/, '$1')).join(', ') + ']')
-}
-
-function postProcessBM(svg) {
-  return svg
-    // 去掉 Google Fonts 的 @import：国内访问慢，且 <img> 里也加载不到
-    .replace(/^\s*@import url\([^)]*\);\s*$/gm, '')
-    .replace(new RegExp(`'${FONT_TOKEN}', system-ui, sans-serif`, 'g'), CJK_STACK)
-    .replace(/\.mono \{ font-family: [^}]*\}/g, `.mono { font-family: ${MONO_STACK}; }`)
-}
-
-// ---------- 颜色工具（给 mermaid.js 回退生成 base 主题变量） ----------
-function hex(c) {
-  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(c || '')
-  if (!m) return null
-  let h = m[1]
-  if (h.length === 3) h = h.split('').map((x) => x + x).join('')
-  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16))
-}
-function mix(a, b, t) { // t = a 的占比
-  const A = hex(a), B = hex(b)
-  if (!A || !B) return a
-  return '#' + A.map((v, i) => Math.round(v * t + B[i] * (1 - t)).toString(16).padStart(2, '0')).join('')
-}
-function isDark(bg) {
-  const c = hex(bg); if (!c) return false
-  return (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) < 128
-}
+export { THEMES, DEFAULT_THEME, CJK_STACK }
 
 function mermaidThemeVars(t) {
   const { bg, fg } = t
@@ -176,12 +116,10 @@ export function normalizeSvg(svgText, bg) {
  */
 export async function render(code, themeName) {
   const theme = THEMES[themeName] || THEMES[DEFAULT_THEME]
-  const head = firstLine(code)
   let bmError = null
-  if (BM_HEADERS.test(head)) {
+  if (isBMSupported(code)) {
     try {
-      const raw = renderMermaidSVG(preprocessBM(code), { ...themeColors(theme), font: FONT_TOKEN })
-      return { svg: normalizeSvg(postProcessBM(raw), theme.bg), renderer: 'beautiful-mermaid' }
+      return { svg: normalizeSvg(renderBM(code, themeName), theme.bg), renderer: 'beautiful-mermaid' }
     } catch (e) {
       bmError = e
     }
