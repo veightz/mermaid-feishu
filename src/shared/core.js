@@ -66,6 +66,11 @@ export const BOARD_THEMES = {
       decisionFill: '#FFFFFF', decisionStroke: '#3B82E0', decisionDash: '3 2',
       chipFill: '#FFFFFF', chipStroke: '#3B82E0', chipText: '#1A5DB0',
       hdr: '#CADCF2', inner: '#E1EBF7', badge: '#C3D7F0', line: '#A5ABB5', arrow: '#9AA1AC', corner: 8,
+      minNodeH: 44, padY: 7, weight: 500, // 节点更高（单行 ≈ 44px，原 37px；多行再 +7px）、文字 500
+      // XY 图：同一浅蓝色系（柱：浅蓝填充 + 稍深蓝描边；线：#4A86E8 起）
+      xyFill: ['#DCE9F7', '#C9DCF3', '#E8F1FB', '#BFD5F0'],
+      xyBarStroke: ['#8DB4EE', '#6E9FE6', '#A9C7F2', '#5A8FDF'],
+      xyLine: ['#4A86E8', '#1A5DB0', '#7FA9EA', '#2F6BCB'],
     },
     // 仅给 mermaid.js 回退（甘特图/饼图）用的蓝色系色板
     blocks: ['blue', 'sky', 'indigo', 'cyan', 'iris', 'teal'].map((h) => block(h, 3)),
@@ -484,6 +489,23 @@ function estTextWidth(t, size = 13) {
 }
 const decodeEnt = (s) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
 
+function setWeight(tag, w) {
+  return /font-weight="/.test(tag) ? tag.replace(/font-weight="[^"]*"/, `font-weight="${w}"`) : tag.replace(/^<text\b/, `<text font-weight="${w}"`)
+}
+/** 节点加高后：贴在旧上/下边的端点挪到新上/下边（同一竖直段一起挪，保持正交） */
+function extendEnd(pts, g) {
+  if (pts.length < 2) return pts
+  const [e, q] = pts
+  const top = Math.abs(e[1] - g.y) < 1.5, bot = Math.abs(e[1] - (g.y + g.h)) < 1.5
+  if (!top && !bot) return pts
+  const ny = top ? g.ny : g.ny + g.nh
+  const out = pts.map((p) => p.slice())
+  out[0][1] = ny
+  // 第一段若是水平的（极少见），补一个竖直小段
+  if (Math.abs(e[1] - q[1]) < 0.5) out.splice(1, 0, [e[0], e[1]])
+  return out
+}
+
 /** 把连接判断节点的端点挪到新圆角矩形的边上；必要时加一个小折线，保持正交 */
 function reattach(pts, rect, dia) {
   // pts[0] 是贴着节点的端点
@@ -527,13 +549,14 @@ export function boardStyle(svg, theme) {
     const label = decodeEnt((dataAttr(attrs, 'label') || '').replace(/<br\s*\/?>/g, '\n'))
     const longest = Math.max(...label.split('\n').map((l) => estTextWidth(l)), 40)
     const w = Math.min(dia.w, Math.max(longest + 48, 110))
-    const h = Math.max(44, texts.length * 18 + 26)
+    const h = Math.max(B.minNodeH, texts.length * 18 + 26)
     const rect = { x: dia.x + (dia.w - w) / 2, y: dia.y + (dia.h - h) / 2, w, h }
     decisions.set(id, { rect, dia })
     const shape = `<rect x="${num(rect.x)}" y="${num(rect.y)}" width="${num(w)}" height="${num(h)}" rx="${B.radius}" ry="${B.radius}" fill="${B.decisionFill}" stroke="${B.decisionStroke}" stroke-width="1" stroke-dasharray="${B.decisionDash}" />`
-    const t = texts.map((x) => x.replace(/fill="[^"]*"/, `fill="${B.text}"`)).join('\n  ')
+    const t = texts.map((x) => setWeight(x.replace(/fill="[^"]*"/, `fill="${B.text}"`), B.weight)).join('\n  ')
     return `<g class="node"${attrs}>\n  ${shape}\n  ${t}\n</g>`
   })
+  const grown = new Map()
   // 2) 普通节点：统一浅蓝圆角块，几乎无边框；文字蓝色
   svg = svg.replace(/<g class="node"([^>]*)>([\s\S]*?)<\/g>/g, (whole, attrs, inner) => {
     const shape = dataAttr(attrs, 'shape') || ''
@@ -542,7 +565,20 @@ export function boardStyle(svg, theme) {
       .replace(/fill="var\(--_node-fill\)"/g, `fill="${B.node}"`)
       .replace(/stroke="var\(--_node-stroke\)"/g, `stroke="${B.nodeStroke}"`)
       .replace(/fill="var\(--_text\)"/g, `fill="${B.text}"`)
-    if (shape === 'rectangle' || shape === 'rounded' || shape === '') inner = inner.replace(/(<rect\b[^>]*?)\srx="[^"]*"\s+ry="[^"]*"/, `$1 rx="${B.radius}" ry="${B.radius}"`)
+    if (shape === 'rectangle' || shape === 'rounded' || shape === '' || shape === 'stadium') {
+      if (shape !== 'stadium') inner = inner.replace(/(<rect\b[^>]*?)\srx="[^"]*"\s+ry="[^"]*"/, `$1 rx="${B.radius}" ry="${B.radius}"`)
+      // 加高：上下各加 padY（单行至少 minNodeH），居中扩展；记下新旧框给连线重新贴边
+      inner = inner.replace(/<rect\b([^>]*?)\/>/, (r, ra) => {
+        const g = (n) => parseFloat(new RegExp(`\\s${n}="([-\\d.]+)"`).exec(ra)?.[1] ?? 'NaN')
+        const x = g('x'), y = g('y'), w = g('width'), h = g('height')
+        if (![x, y, w, h].every(Number.isFinite)) return r
+        const nh = Math.max(B.minNodeH, h + B.padY), ny = y - (nh - h) / 2
+        grown.set(dataAttr(attrs, 'id'), { x, y, w, h, ny, nh })
+        const pill = shape === 'stadium' ? ` rx="${num(nh / 2)}" ry="${num(nh / 2)}"` : ''
+        return `<rect${ra.replace(pill ? /\s(y|height|rx|ry)="[^"]*"/g : /\s(y|height)="[^"]*"/g, '')} y="${num(ny)}" height="${num(nh)}"${pill} />`
+      })
+    }
+    inner = inner.replace(/<text\b[^>]*>/g, (t) => setWeight(t, B.weight))
     return `<g class="node"${attrs}>${inner}</g>`
   })
   // 3) 连线：端点贴到判断节点新边框上；正交折线 → 圆角路径
@@ -552,6 +588,9 @@ export function boardStyle(svg, theme) {
     const from = decisions.get(dataAttr(attrs, 'from')), to = decisions.get(dataAttr(attrs, 'to'))
     if (from) p = reattach(p, from.rect, from.dia)
     if (to) p = reattach(p.slice().reverse(), to.rect, to.dia).reverse()
+    const gf = grown.get(dataAttr(attrs, 'from')), gt = grown.get(dataAttr(attrs, 'to'))
+    if (gf) p = extendEnd(p, gf)
+    if (gt) p = extendEnd(p.slice().reverse(), gt).reverse()
     const rest = attrs.replace(/\sstroke="[^"]*"/, '').replace(/\sfill="[^"]*"/, '')
     return `<path class="edge"${rest} d="${roundedPath(p, B.corner)}" fill="none" stroke="${B.line}" />`
   })
@@ -573,7 +612,17 @@ export function boardStyle(svg, theme) {
   </marker>`
   svg = svg.replace(/<marker id="arrowhead"[\s\S]*?<\/marker>/, chevron('arrowhead', 'auto'))
     .replace(/<marker id="arrowhead-start"[\s\S]*?<\/marker>/, chevron('arrowhead-start', 'auto-start-reverse'))
-  // 6) 其他图（时序/类/ER/状态）：表头、内线、徽标改成蓝色系
+  // 6) XY 图：柱/线/点/图例改成同一浅蓝色系
+  const ci = (i) => +i % B.xyLine.length
+  // 折线按出现顺序取色（第一条线 #4A86E8），柱子按柱序取色
+  const lineIdx = [...new Set([...svg.matchAll(/class="xychart-line xychart-color-(\d+)"/g)].map((m) => m[1]))]
+  const li = (i) => (lineIdx.includes(i) ? lineIdx.indexOf(i) : +i) % B.xyLine.length
+  svg = svg
+    .replace(/\.xychart-bar\.xychart-color-(\d+)\s*\{[^}]*\}/g, (m, i) => `.xychart-bar.xychart-color-${i} { stroke: ${B.xyBarStroke[ci(i)]}; fill: ${B.xyFill[ci(i)]}; }`)
+    .replace(/\.xychart-color-(\d+), line\.xychart-color-\1\s*\{[^}]*\}/g, (m, i) => `.xychart-color-${i}, line.xychart-color-${i} { stroke: ${B.xyLine[li(i)]}; }`)
+    .replace(/circle\.xychart-color-(\d+)\s*\{[^}]*\}/g, (m, i) => `circle.xychart-color-${i} { fill: ${B.xyLine[li(i)]}; }`)
+  // 7) 其他图（时序/类/ER/状态）：表头、内线、徽标改成蓝色系；文字 500
+  svg = svg.replace(/(<g class="(?:actor|class-node|entity)"[^>]*>)([\s\S]*?)(<\/g>)/g, (m, a, inner, z) => a + inner.replace(/<text\b[^>]*>/g, (t) => /font-weight="(6|7)00"/.test(t) ? t : setWeight(t, B.weight)) + z)
   return svg
     .replace(/var\(--_group-hdr\)/g, B.hdr)
     .replace(/var\(--_inner-stroke\)/g, B.inner)
