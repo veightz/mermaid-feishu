@@ -119,6 +119,7 @@ async function renderWithMermaid(code, theme) {
   mermaid.initialize({
     startOnLoad: false,
     securityLevel: 'strict',
+    maxTextSize: 200000,
     suppressErrorRendering: true,
     theme: 'base',
     themeVariables: mermaidThemeVars(theme),

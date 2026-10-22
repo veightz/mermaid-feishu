@@ -88,6 +88,15 @@ const CSS_PROPS = ['opacity', 'fill-opacity', 'stroke-opacity', 'stroke-width', 
  * 把 SVG 里所有 CSS 变量 / color-mix 解析成具体颜色，写回成属性；
  * 去掉 @import、自定义属性和依赖变量的声明，补齐 xmlns / viewBox / width / height。
  */
+// getComputedStyle 对 color-mix 的结果会返回 color(srgb r g b)，转成通用的 rgb()/rgba()
+function normColor(v) {
+  if (!v) return v
+  return v.replace(/color\(srgb\s+([-\d.e]+)\s+([-\d.e]+)\s+([-\d.e]+)(?:\s*\/\s*([\d.]+))?\)/g, (_, r, g, b, a) => {
+    const c = [r, g, b].map((x) => Math.max(0, Math.min(255, Math.round(parseFloat(x) * 255))))
+    return a != null && parseFloat(a) < 1 ? `rgba(${c.join(', ')}, ${parseFloat(a)})` : `rgb(${c.join(', ')})`
+  })
+}
+
 export function flattenSvg(svgText, bg) {
   const host = document.createElement('div')
   host.style.cssText = 'position:absolute;left:-100000px;top:0;visibility:hidden;pointer-events:none'
@@ -96,10 +105,11 @@ export function flattenSvg(svgText, bg) {
   try {
     const svg = host.querySelector('svg')
     const all = [svg, ...svg.querySelectorAll('*')]
+    const indexOf = new Map(all.map((el, i) => [el, i]))
     const snapshot = all.map((el) => {
       const cs = getComputedStyle(el)
       const vals = {}
-      for (const p of PAINT_PROPS) vals[p] = cs.getPropertyValue(p)
+      for (const p of PAINT_PROPS) vals[p] = normColor(cs.getPropertyValue(p))
       for (const p of CSS_PROPS) vals[p] = cs.getPropertyValue(p)
       return vals
     })
@@ -118,9 +128,13 @@ export function flattenSvg(svgText, bg) {
       }
       // 2) 颜色统一写成属性（覆盖 class 规则里用变量的情况）
       if (!['style', 'defs', 'title', 'desc', 'marker', 'linearGradient', 'radialGradient', 'clipPath', 'mask', 'filter', 'metadata'].includes(el.localName) || el === svg) {
+        // fill/stroke 会继承：只有和父元素计算值不同时才写，避免体积膨胀
+        const parentVals = indexOf.has(el.parentElement) ? snapshot[indexOf.get(el.parentElement)] : null
         for (const p of ['fill', 'stroke']) {
           const v = vals[p]
-          if (v && !el.hasAttribute(p) && el !== svg) el.setAttribute(p, v)
+          if (!v || el.hasAttribute(p) || el === svg) continue
+          if (parentVals && parentVals[p] === v && !el.getAttribute('class')) continue
+          el.setAttribute(p, v)
         }
         if (vals['stop-color'] && el.localName === 'stop' && !el.hasAttribute('stop-color')) el.setAttribute('stop-color', vals['stop-color'])
       }
