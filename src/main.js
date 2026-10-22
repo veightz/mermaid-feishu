@@ -1,7 +1,7 @@
 import './style.css'
 import { render, validate, THEMES, DEFAULT_THEME } from './render.js'
 import { EXAMPLES } from './examples.js'
-import { pngSize, svgSize, svgToPngBlob, copyPng, copyText, download, cleanSvg, buildHtmlWidget, HTML_WIDGET_LIMIT, PNG_MAX_SIDE } from './export.js'
+import { pngSize, svgSize, svgToPngBlob, copyPng, copyText, download, cleanSvg, buildHtmlWidget, HTML_WIDGET_LIMIT, PNG_MAX_SIDE, PNG_HARD_MAX_SIDE } from './export.js'
 import { THEME_LABELS, firstLine } from './shared/core.js'
 
 const $ = (id) => document.getElementById(id)
@@ -96,8 +96,15 @@ function setOk(ok) {
 function updateSize() {
   if (!state.svg) return
   const s = pngSize(state.svg, state.scale)
-  els.size.textContent = `PNG ${s.width}×${s.height}px（${s.capped ? `实际 ${s.scale.toFixed(2)}x，最长边已限制为 ${PNG_MAX_SIDE}px` : `${state.scale}x`}）`
-  els.size.title = s.capped ? `按 ${state.scale}x 会超过 ${PNG_MAX_SIDE}px，已等比缩小到 ${s.scale.toFixed(2)}x` : '图的原始尺寸 × 倍率'
+  const eff = `${+s.scale.toFixed(2)}x`
+  els.size.textContent = !s.capped ? `PNG ${s.width}×${s.height}px（${state.scale}x）`
+    : s.atLimit ? `PNG ${s.width}×${s.height}px（实际 ${s.scale.toFixed(2)}x，最长边已限制为 ${s.limit}px）`
+    : `PNG ${s.width}×${s.height}px（实际 ${eff}：倍率保底 1x，最长边放宽到 ${Math.max(s.width, s.height)}px）`
+  els.size.title = !s.capped ? '图的原始尺寸 × 倍率'
+    : s.limit === PNG_MAX_SIDE ? `按 ${state.scale}x 会超过 ${PNG_MAX_SIDE}px，已等比缩小到 ${s.scale.toFixed(2)}x`
+    : s.scale >= 1 - 1e-9 ? `倍率保底 1x：最长边超过 ${PNG_MAX_SIDE}px 时放宽，最多 ${PNG_HARD_MAX_SIDE}px`
+    : `1x 也超过 ${PNG_HARD_MAX_SIDE}px，已等比缩小到最长边 ${PNG_HARD_MAX_SIDE}px（${s.scale.toFixed(2)}x）`
+  document.body.dataset.pngW = String(s.width); document.body.dataset.pngH = String(s.height)
   document.body.dataset.pngScale = s.scale.toFixed(3)
 }
 /** 宽图提示：原始宽度 > 1200px 时显示；LR/RL 流程图建议改成 TB */

@@ -53,7 +53,8 @@ curl -s https://mermaid-feishu.pages.dev/api/render -H 'Content-Type: applicatio
 ## PNG 尺寸与中文字体
 
 - PNG 尺寸 = 图的原始尺寸 × 倍率（2x / 3x），不再缩到 820px 宽，所以宽图也清晰。
-- 最长边上限 4096px：超出时等比缩小，界面上会显示实际倍率（例如「实际 2.57x」）。
+- 最长边上限 4096px：超出时等比缩小，界面上会显示实际倍率（例如「实际 2.70x」）。
+- 倍率保底 1x：要保住 1x 会超过 4096px 时，放宽到 1x 为止，最长边最多 8192px；连 1x 都超过 8192px 时，缩到最长边 = 8192px。这种超长图本来就不适合贴进飞书，网页会给出宽图提示。
 - 飞书正文宽约 820px，贴进去的图会缩到正文宽度。原始宽度超过约 1200px 的图，贴进去后字会明显变小；网页会给出提示，`flowchart LR` / `RL` 的图建议改成 `TB`。
 - SVG 转 PNG 时浏览器拿不到网页字体，所以统一用系统中文字体栈：
   `PingFang SC / Hiragino Sans GB / Microsoft YaHei / Noto Sans CJK SC / Source Han Sans SC …`

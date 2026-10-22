@@ -6,16 +6,29 @@ export function svgSize(svgText) {
   return { w: parseFloat(svg.getAttribute('width')) || 0, h: parseFloat(svg.getAttribute('height')) || 0 }
 }
 
-/** PNG 最长边上限（像素） */
+/** PNG 最长边上限（像素）：按倍率导出时的常规上限 */
 export const PNG_MAX_SIDE = 4096
+/** 保底上限：倍率至少 1x；为了 1x 可放宽到 8192px（Chrome canvas 安全范围内） */
+export const PNG_HARD_MAX_SIDE = 8192
 
-/** 计算 PNG 像素尺寸：图的原始尺寸 × 倍率；最长边超过 4096px 时等比缩小，返回实际倍率 */
+/**
+ * 计算 PNG 像素尺寸：图的原始尺寸 × 倍率。
+ * - 最长边超过 4096px 时等比缩小，但倍率不低于 1x；
+ * - 要保住 1x 会超过 4096px 时，放宽到 1x 为止，最长边最多 8192px；
+ * - 连 1x 都超过 8192px 时，缩到最长边 = 8192px。
+ * 返回实际倍率 scale、是否被限制 capped、生效的上限 limit。
+ */
 export function pngSize(svgText, scale) {
   const { w, h } = svgSize(svgText)
   const longest = Math.max(w, h) || 1
-  const eff = Math.min(scale, PNG_MAX_SIDE / longest)
+  let eff = Math.min(scale, PNG_MAX_SIDE / longest)
+  let limit = PNG_MAX_SIDE
+  if (eff < 1) { eff = Math.min(1, PNG_HARD_MAX_SIDE / longest); limit = PNG_HARD_MAX_SIDE }
   const capped = eff < scale - 1e-9
-  return { width: Math.round(w * eff), height: Math.round(h * eff), naturalW: w, naturalH: h, scale: eff, capped }
+  let width = Math.max(1, Math.round(w * eff)), height = Math.max(1, Math.round(h * eff))
+  // 四舍五入后不超过上限
+  width = Math.min(width, limit); height = Math.min(height, limit)
+  return { width, height, naturalW: w, naturalH: h, scale: eff, capped, limit, atLimit: capped && Math.abs(Math.max(w, h) * eff - limit) < 0.5 }
 }
 
 function loadImage(src) {
