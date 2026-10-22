@@ -7,7 +7,9 @@
 ## 怎么用
 
 1. 左边粘贴 Mermaid 源码（不用带 ```` ```mermaid ```` 围栏），右边实时预览。
-2. 右上角选主题、选倍率（2x / 3x）。
+2. 右上角选主题、选倍率（2x / 3x）。默认主题是「飞书白」。
+   - 浅色（细线、低饱和，适合飞书文档）：`feishu-light` 飞书白（默认，白底）、`feishu-gray` 飞书浅灰（浅灰底）、`soft-sage` 淡雅灰绿
+   - beautiful-mermaid 自带 15 个：`zinc-light` `github-light` `nord-light` `tokyo-night-light` `catppuccin-latte` `solarized-light` `zinc-dark` `github-dark` `tokyo-night` `tokyo-night-storm` `catppuccin-mocha` `nord` `dracula` `solarized-dark` `one-dark`
 3. 点按钮：
    - **复制 PNG**：把高清 PNG 写进剪贴板，去飞书文档里直接 `⌘/Ctrl + V`。剪贴板不可用时自动改为下载。
    - **下载 PNG**：保存成文件，再拖进飞书。

@@ -1,5 +1,5 @@
 import './style.css'
-import { render, validate, THEMES } from './render.js'
+import { render, validate, THEMES, DEFAULT_THEME } from './render.js'
 import { EXAMPLES } from './examples.js'
 import { pngSize, svgToPngBlob, copyPng, copyText, download, flattenSvg, buildHtmlWidget, HTML_WIDGET_LIMIT } from './export.js'
 import { CJK_STACK } from './render.js'
@@ -12,13 +12,14 @@ const els = {
 }
 const LS = { src: 'mf.source', theme: 'mf.theme', scale: 'mf.scale' }
 const THEME_LABELS = {
+  'feishu-light': '飞书白（默认）', 'feishu-gray': '飞书浅灰', 'soft-sage': '淡雅灰绿',
   'zinc-light': '简洁浅色', 'github-light': 'GitHub 浅色', 'nord-light': 'Nord 浅色', 'tokyo-night-light': 'Tokyo Night 浅色',
   'catppuccin-latte': 'Catppuccin Latte', 'solarized-light': 'Solarized 浅色', 'zinc-dark': '简洁深色', 'github-dark': 'GitHub 深色',
   'tokyo-night': 'Tokyo Night', 'tokyo-night-storm': 'Tokyo Night Storm', 'catppuccin-mocha': 'Catppuccin Mocha', nord: 'Nord',
   dracula: 'Dracula', 'solarized-dark': 'Solarized 深色', 'one-dark': 'One Dark',
 }
 
-const state = { svg: '', renderer: '', theme: 'github-light', scale: 2, ok: false }
+const state = { svg: '', renderer: '', theme: DEFAULT_THEME, scale: 2, ok: false }
 
 function store(k, v) { try { localStorage.setItem(k, v) } catch {} }
 function load(k) { try { return localStorage.getItem(k) } catch { return null } }
@@ -37,7 +38,7 @@ for (const name of Object.keys(THEME_LABELS)) {
 }
 for (const ex of EXAMPLES) els.example.add(new Option(ex.name, ex.id))
 
-state.theme = THEMES[load(LS.theme)] ? load(LS.theme) : 'github-light'
+state.theme = THEMES[load(LS.theme)] ? load(LS.theme) : DEFAULT_THEME
 state.scale = load(LS.scale) === '3' ? 3 : 2
 els.theme.value = state.theme
 els.scale.value = String(state.scale)

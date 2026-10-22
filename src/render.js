@@ -1,6 +1,14 @@
-import { renderMermaidSVG, THEMES } from 'beautiful-mermaid'
+import { renderMermaidSVG, THEMES as BM_THEMES } from 'beautiful-mermaid'
 
-export { THEMES }
+// 自定义浅色主题：白底 / 浅灰底、细线、低饱和，贴近飞书文档观感（soft = 饼图等用低饱和色板）
+export const CUSTOM_THEMES = {
+  'feishu-light': { bg: '#FFFFFF', fg: '#1F2329', line: '#BBBFC4', accent: '#7A8BA8', muted: '#646A73', surface: '#F7F8FA', border: '#DEE0E3', soft: true },
+  'feishu-gray': { bg: '#F5F6F7', fg: '#1F2329', line: '#B5B9BF', accent: '#7D8A9C', muted: '#646A73', surface: '#FFFFFF', border: '#DADCE0', soft: true },
+  'soft-sage': { bg: '#FFFFFF', fg: '#2B312D', line: '#BCC5BE', accent: '#7E9A86', muted: '#66706A', surface: '#F6F8F6', border: '#DCE2DD', soft: true },
+}
+export const DEFAULT_THEME = 'feishu-light'
+export const THEMES = { ...CUSTOM_THEMES, ...BM_THEMES }
+const themeColors = (t) => { const { soft, ...c } = t; return c }
 
 // 中文优先的系统字体栈：SVG 以 <img> 栅格化时拿不到网页字体，只能用系统字体，
 // 所以这里只列各平台自带/常见的中文字体，不依赖任何网络字体。
@@ -101,9 +109,11 @@ function mermaidThemeVars(t) {
     pieLegendTextColor: fg,
   }
   // 饼图色板：多色相，深浅主题通用
-  const palette = ['#3370ff', '#34c724', '#ff8800', '#7f3bf5', '#f54a45', '#14c0ff', '#ffc60a', '#f14bae', '#00b8a9', '#8f959e', '#245bdb', '#2ea121']
+  const palette = t.soft
+    ? ['#8DA2C4', '#9DBBA4', '#D4B48C', '#AFA1C9', '#C9A0A0', '#94BCC9', '#CFC48E', '#C4A3B8', '#8FB8B1', '#A9AEB6', '#7F93B3', '#A7C29A']
+    : ['#3370ff', '#34c724', '#ff8800', '#7f3bf5', '#f54a45', '#14c0ff', '#ffc60a', '#f14bae', '#00b8a9', '#8f959e', '#245bdb', '#2ea121']
   palette.forEach((c, i) => { vars['pie' + (i + 1)] = c })
-  vars.pieSectionTextColor = '#ffffff'
+  vars.pieSectionTextColor = t.soft ? fg : '#ffffff'
   return vars
 }
 
@@ -165,12 +175,12 @@ export function normalizeSvg(svgText, bg) {
  * 返回 { svg, renderer, note }
  */
 export async function render(code, themeName) {
-  const theme = THEMES[themeName] || THEMES['zinc-light']
+  const theme = THEMES[themeName] || THEMES[DEFAULT_THEME]
   const head = firstLine(code)
   let bmError = null
   if (BM_HEADERS.test(head)) {
     try {
-      const raw = renderMermaidSVG(preprocessBM(code), { ...theme, font: FONT_TOKEN })
+      const raw = renderMermaidSVG(preprocessBM(code), { ...themeColors(theme), font: FONT_TOKEN })
       return { svg: normalizeSvg(postProcessBM(raw), theme.bg), renderer: 'beautiful-mermaid' }
     } catch (e) {
       bmError = e
