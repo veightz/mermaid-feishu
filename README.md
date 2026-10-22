@@ -10,6 +10,7 @@
 2. 右上角选主题、选倍率（2x / 3x）。默认主题是「飞书白」。
    - 浅色（细线、低饱和，适合飞书文档）：`feishu-light` 飞书白（默认，白底）、`feishu-gray` 飞书浅灰（浅灰底）、`soft-sage` 淡雅灰绿
    - 画板风：`feishu-blue` 飞书画板蓝（白底、统一浅蓝圆角块、判断节点为蓝色虚线圆角框、细灰圆角连线、「是/否」胶囊标签，仿飞书画板流程图）
+   - `chatgpt` ChatGPT 风：仿 ChatGPT 对话里的 Mermaid 预览。流程图 / graph 换成 ELK 分层布局（和 ChatGPT 一样的排版和连线走向），其他图类型仍用原渲染器、只换浅蓝配色
    - 色块（非纯白底，节点按分支 / 分组 / 角色填充低饱和浅色块）：`notion-blocks` Notion 色块、`latte-blocks` Catppuccin Latte 色块、`rose-pine-dawn` Rosé Pine Dawn 色块、`nord-snow` Nord 雪原色块、`solarized-paper` Solarized 纸色块
    - beautiful-mermaid 自带 15 个：`zinc-light` `github-light` `nord-light` `tokyo-night-light` `catppuccin-latte` `solarized-light` `zinc-dark` `github-dark` `tokyo-night` `tokyo-night-storm` `catppuccin-mocha` `nord` `dracula` `solarized-dark` `one-dark`
 3. 点按钮：
@@ -33,6 +34,12 @@
 | ER 图 `erDiagram` | beautiful-mermaid |
 | XY 图 `xychart-beta` | beautiful-mermaid |
 | 其他（甘特图、饼图、思维导图、时间线、Git 图……） | 回退官方 mermaid.js（主题颜色按所选主题生成） |
+
+选「ChatGPT 风」（`chatgpt`）时，流程图 / graph 改走自带的 ELK 管线（`src/shared/chatgpt.js`）：beautiful-mermaid 只负责解析，
+用内置字宽表量字（中日韩字符按 1em，拉丁字母/数字查表），交给 elkjs 0.9.3 的 `layered` 算法布局（选项与 ChatGPT 的 Mermaid 预览一致：
+`BRANDES_KOEPF`、`mergeEdges=false`、`considerModelOrder=NODES_AND_EDGES`、正交连线），再直接输出不含 `foreignObject` 的 SVG。
+整条管线纯 JS、不碰 DOM，网页和 API 跑同一份代码，所以两边输出的 SVG 逐字节相同。这条管线失败时退回 beautiful-mermaid。
+设计参数（圆角 16、内边距 16/36、最小高 60、判断节点虚线框、5px 圆角拐弯、胶囊标签、配色）参考 ChatGPT 的预览样式，代码为本项目自写。
 
 beautiful-mermaid 报错时也会回退 mermaid.js。预览标题旁的小标签会显示这次用的是哪个渲染器。
 beautiful-mermaid 对看不懂的行会静默跳过，所以页面还会用官方解析器再检查一遍，有问题时显示黄色「语法提示」。

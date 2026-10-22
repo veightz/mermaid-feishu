@@ -78,17 +78,27 @@ export const BOARD_THEMES = {
   },
 }
 
+// ChatGPT 风：流程图 / graph 走自带的 ELK 布局管线（src/shared/chatgpt.js，网页和 API 同一份代码）；
+// 其他图类型仍用原来的渲染器，只套一组 ChatGPT 风的浅蓝配色。
+export const CHATGPT_THEMES = {
+  chatgpt: {
+    bg: '#FFFFFF', fg: '#0D2B4D', line: '#AEB9C5', accent: '#6F93BF', muted: '#4A6A92', surface: '#E5F3FF', border: '#CEDAE5',
+    soft: true, chatgpt: true,
+  },
+}
+export const isChatGPTTheme = (id) => !!(THEMES[id] && THEMES[id].chatgpt)
+
 export const DEFAULT_THEME = 'feishu-light'
-export const THEMES = { ...CUSTOM_THEMES, ...BOARD_THEMES, ...BLOCK_THEMES, ...BM_THEMES }
+export const THEMES = { ...CUSTOM_THEMES, ...BOARD_THEMES, ...CHATGPT_THEMES, ...BLOCK_THEMES, ...BM_THEMES }
 export const THEME_LABELS = {
   'feishu-light': '飞书白（默认）', 'feishu-gray': '飞书浅灰', 'soft-sage': '淡雅灰绿',
-  'feishu-blue': '飞书画板蓝', 'notion-blocks': 'Notion 色块', 'latte-blocks': 'Catppuccin Latte 色块', 'rose-pine-dawn': 'Rosé Pine Dawn 色块', 'nord-snow': 'Nord 雪原色块', 'solarized-paper': 'Solarized 纸色块',
+  'feishu-blue': '飞书画板蓝', chatgpt: 'ChatGPT 风', 'notion-blocks': 'Notion 色块', 'latte-blocks': 'Catppuccin Latte 色块', 'rose-pine-dawn': 'Rosé Pine Dawn 色块', 'nord-snow': 'Nord 雪原色块', 'solarized-paper': 'Solarized 纸色块',
   'zinc-light': '简洁浅色', 'github-light': 'GitHub 浅色', 'nord-light': 'Nord 浅色', 'tokyo-night-light': 'Tokyo Night 浅色',
   'catppuccin-latte': 'Catppuccin Latte', 'solarized-light': 'Solarized 浅色', 'zinc-dark': '简洁深色', 'github-dark': 'GitHub 深色',
   'tokyo-night': 'Tokyo Night', 'tokyo-night-storm': 'Tokyo Night Storm', 'catppuccin-mocha': 'Catppuccin Mocha', nord: 'Nord',
   dracula: 'Dracula', 'solarized-dark': 'Solarized 深色', 'one-dark': 'One Dark',
 }
-export const themeColors = (t) => { const { soft, blocks, decision, board, opts, ...c } = t; return { ...c, ...(opts || {}) } }
+export const themeColors = (t) => { const { soft, blocks, decision, board, opts, chatgpt, ...c } = t; return { ...c, ...(opts || {}) } }
 export function themeList() {
   return Object.keys(THEME_LABELS).filter((id) => THEMES[id]).map((id) => ({ id, name: THEME_LABELS[id], background: THEMES[id].bg, dark: isDark(THEMES[id].bg) }))
 }

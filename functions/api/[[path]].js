@@ -5,8 +5,9 @@ import './_global-shim.js'
 // 只用 beautiful-mermaid（纯 TS、无 DOM），与网页共用 src/shared/core.js 的清理和 HTML 生成逻辑。
 import {
   SITE_URL, MAX_SOURCE_BYTES, DEFAULT_THEME, THEMES, BM_TYPES,
-  themeList, isBMSupported, diagramType, renderBM, cleanSvg, buildHtmlWidget, svgDims, byteLength,
+  themeList, isBMSupported, diagramType, renderBM, cleanSvg, buildHtmlWidget, svgDims, byteLength, isChatGPTTheme,
 } from '../../src/shared/core.js'
+import { isFlowchart, renderChatGPTFlowchart } from '../../src/shared/chatgpt.js'
 
 const VERSION = '1.0.0'
 const CORS = {
@@ -59,23 +60,28 @@ async function handleRender(request, url) {
   if (!['svg', 'html'].includes(format)) return fail(400, 'bad_format', `format 只能是 svg 或 html / format must be "svg" or "html"`)
   if (!THEMES[theme]) return fail(400, 'bad_theme', `未知主题 ${theme} / Unknown theme`, { themes: themeList().map((t) => t.id) })
 
-  if (!isBMSupported(code)) {
+  const useCG = isChatGPTTheme(theme) && isFlowchart(code)
+  if (!useCG && !isBMSupported(code)) {
     const type = diagramType(code) || 'unknown'
     return fail(422, 'unsupported_diagram',
       `该图类型（${type}）API 暂不支持，请到网页 ${SITE_URL} 渲染（网页会自动回退官方 mermaid.js）。/ Diagram type "${type}" is not supported by the API; please render it on the website ${SITE_URL}.`,
       { type, supported: BM_TYPES, web: SITE_URL })
   }
 
-  let svg
+  let svg, renderer = 'beautiful-mermaid', cgError = null
   try {
-    svg = cleanSvg(renderBM(code, theme), THEMES[theme].bg)
+    if (useCG) {
+      // ChatGPT 风流程图：与网页同一条 ELK 管线（src/shared/chatgpt.js），失败时退回 beautiful-mermaid（与网页一致）
+      try { svg = cleanSvg(await renderChatGPTFlowchart(code), THEMES[theme].bg); renderer = 'chatgpt-elk' } catch (e) { svg = null; cgError = String((e && e.message) || e).slice(0, 200) }
+    }
+    if (!svg) svg = cleanSvg(renderBM(code, theme), THEMES[theme].bg)
   } catch (e) {
     return fail(400, 'syntax_error', `Mermaid 语法错误 / Mermaid syntax error: ${(e && e.message) || e}`)
   }
   const { width, height } = svgDims(svg)
   const data = format === 'html' ? buildHtmlWidget(svg, THEMES[theme].bg) : svg
-  const meta = { 'X-Renderer': 'beautiful-mermaid', 'X-Theme': theme, 'X-Width': String(width), 'X-Height': String(height) }
-  if (asJson) return json(200, { ok: true, format, renderer: 'beautiful-mermaid', theme, width, height, bytes: byteLength(data), data }, meta)
+  const meta = { 'X-Renderer': renderer, 'X-Theme': theme, 'X-Width': String(width), 'X-Height': String(height), ...(cgError ? { 'X-Fallback-Reason': encodeURIComponent(cgError) } : {}) }
+  if (asJson) return json(200, { ok: true, format, renderer, theme, width, height, bytes: byteLength(data), ...(cgError ? { note: `ChatGPT 风布局失败，已改用 beautiful-mermaid：${cgError}` } : {}), data }, meta)
   return new Response(data, {
     status: 200,
     headers: {
@@ -91,7 +97,7 @@ export async function onRequest({ request }) {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS })
   const path = url.pathname.replace(/\/+$/, '')
   try {
-    if (path === '/api/health') return json(200, { ok: true, service: 'mermaid-feishu', version: VERSION, renderer: 'beautiful-mermaid', time: new Date().toISOString() })
+    if (path === '/api/health') return json(200, { ok: true, service: 'mermaid-feishu', version: VERSION, renderer: 'beautiful-mermaid + chatgpt-elk', time: new Date().toISOString() })
     if (path === '/api/themes') {
       if (request.method !== 'GET') return fail(405, 'method_not_allowed', '只支持 GET / GET only')
       return json(200, { ok: true, default: DEFAULT_THEME, themes: themeList() })

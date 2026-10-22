@@ -1,6 +1,10 @@
 import {
-  THEMES, DEFAULT_THEME, CJK_STACK, isBMSupported, renderBM, mix, isDark,
+  THEMES, DEFAULT_THEME, CJK_STACK, isBMSupported, renderBM, mix, isDark, isChatGPTTheme,
 } from './shared/core.js'
+
+// ChatGPT 风流程图管线（含 elkjs，体积较大）按需加载
+let cgPromise = null
+const loadChatGPT = () => (cgPromise ||= import('./shared/chatgpt.js'))
 
 export { THEMES, DEFAULT_THEME, CJK_STACK }
 
@@ -132,9 +136,19 @@ export function normalizeSvg(svgText, bg) {
 export async function render(code, themeName) {
   const theme = THEMES[themeName] || THEMES[DEFAULT_THEME]
   let bmError = null
+  if (isChatGPTTheme(themeName)) {
+    const cg = await loadChatGPT()
+    if (cg.isFlowchart(code)) {
+      try {
+        return { svg: await cg.renderChatGPTFlowchart(code), renderer: 'chatgpt-elk' }
+      } catch (e) {
+        bmError = e // 失败时退回原渲染器
+      }
+    }
+  }
   if (isBMSupported(code)) {
     try {
-      return { svg: normalizeSvg(renderBM(code, themeName), theme.bg), renderer: 'beautiful-mermaid' }
+      return { svg: normalizeSvg(renderBM(code, themeName), theme.bg), renderer: 'beautiful-mermaid', note: bmError ? `ChatGPT 风布局失败，已改用 beautiful-mermaid：${bmError.message}` : null }
     } catch (e) {
       bmError = e
     }

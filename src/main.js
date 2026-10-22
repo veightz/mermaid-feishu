@@ -64,7 +64,7 @@ async function update() {
     els.error.hidden = !res.note
     els.error.textContent = res.note || ''
     els.error.classList.toggle('warn', !!res.note)
-    if (res.renderer === 'beautiful-mermaid') {
+    if (res.renderer === 'beautiful-mermaid' || res.renderer === 'chatgpt-elk') {
       validate(code).then((msg) => {
         if (my !== renderSeq || !msg) return
         els.error.hidden = false

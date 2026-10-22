@@ -11,7 +11,7 @@
 
 - [POST /api/render](https://mermaid-feishu.pages.dev/api/render): JSON `{ code, format: "svg"|"html", theme? }` → `image/svg+xml` 或 `text/html`；`?json=1` 返回 JSON 包装；源码上限 50KB
 - [GET /api/render?code=&format=&theme=](https://mermaid-feishu.pages.dev/api/render): 短源码用 GET
-- [GET /api/themes](https://mermaid-feishu.pages.dev/api/themes): 主题列表（默认 feishu-light）
+- [GET /api/themes](https://mermaid-feishu.pages.dev/api/themes): 主题列表（默认 feishu-light）；`theme=chatgpt` = ChatGPT 风（流程图用 ELK 分层布局，网页与 API 输出一致）
 - [GET /api/health](https://mermaid-feishu.pages.dev/api/health): 健康检查
 
 ## Supported (API)
