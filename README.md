@@ -9,6 +9,7 @@
 1. 左边粘贴 Mermaid 源码（不用带 ```` ```mermaid ```` 围栏），右边实时预览。
 2. 右上角选主题、选倍率（2x / 3x）。默认主题是「飞书白」。
    - 浅色（细线、低饱和，适合飞书文档）：`feishu-light` 飞书白（默认，白底）、`feishu-gray` 飞书浅灰（浅灰底）、`soft-sage` 淡雅灰绿
+   - 色块（非纯白底，节点按分支 / 分组 / 角色填充低饱和浅色块）：`notion-blocks` Notion 色块、`latte-blocks` Catppuccin Latte 色块、`rose-pine-dawn` Rosé Pine Dawn 色块、`nord-snow` Nord 雪原色块、`solarized-paper` Solarized 纸色块
    - beautiful-mermaid 自带 15 个：`zinc-light` `github-light` `nord-light` `tokyo-night-light` `catppuccin-latte` `solarized-light` `zinc-dark` `github-dark` `tokyo-night` `tokyo-night-storm` `catppuccin-mocha` `nord` `dracula` `solarized-dark` `one-dark`
 3. 点按钮：
    - **复制 PNG**：把高清 PNG 写进剪贴板，去飞书文档里直接 `⌘/Ctrl + V`。剪贴板不可用时自动改为下载。
@@ -78,3 +79,14 @@ npm run build    # 产物在 dist/
 - [beautiful-mermaid](https://github.com/lukilabs/beautiful-mermaid)（MIT，Craft Docs）
 - [mermaid](https://github.com/mermaid-js/mermaid)（MIT）
 - [Vite](https://vitejs.dev)（MIT，仅构建用）
+
+### 配色致谢
+
+色块主题的颜色值来自以下公开配色，仅复用色值：
+
+- [Radix Colors](https://www.radix-ui.com/colors)（MIT，© 2021 Radix / WorkOS）：所有色块的填充 / 边框 / 文字色阶（`src/shared/radix.js`）
+- [Notion](https://www.notion.so) 的文字与背景色（`#37352F` / `#F7F6F3` 等）：`notion-blocks`
+- [Catppuccin](https://github.com/catppuccin/catppuccin) Latte（MIT）：`latte-blocks`
+- [Rosé Pine](https://github.com/rose-pine/rose-pine-palette) Dawn（MIT）：`rose-pine-dawn`
+- [Nord](https://www.nordtheme.com)（MIT）Snow Storm / Frost / Aurora：`nord-snow`
+- [Solarized](https://ethanschoonover.com/solarized/)（MIT）Light：`solarized-paper`

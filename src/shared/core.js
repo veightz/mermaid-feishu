@@ -1,5 +1,6 @@
 // 前端和 Pages Functions 共用的核心逻辑：不依赖 DOM，Workers 里也能跑。
 import { renderMermaidSVG, THEMES as BM_THEMES } from 'beautiful-mermaid'
+import { RADIX } from './radix.js'
 
 export const SITE_URL = 'https://mermaid-feishu.pages.dev'
 export const FEISHU_WIDTH = 820 // 飞书正文大约 820 CSS px
@@ -13,16 +14,57 @@ export const CUSTOM_THEMES = {
   'feishu-gray': { bg: '#F5F6F7', fg: '#1F2329', line: '#B5B9BF', accent: '#7D8A9C', muted: '#646A73', surface: '#FFFFFF', border: '#DADCE0', soft: true },
   'soft-sage': { bg: '#FFFFFF', fg: '#2B312D', line: '#BCC5BE', accent: '#7E9A86', muted: '#66706A', surface: '#F6F8F6', border: '#DCE2DD', soft: true },
 }
+// ---------- 色块主题（Radix Colors 色阶：填充 = step 3/4，边框 = step 7，文字 = step 11/12） ----------
+function block(hue, fillStep = 3) {
+  const r = RADIX[hue]
+  return {
+    hue,
+    tint: r[fillStep - 2], // 分组底色（更浅一级）
+    fill: r[fillStep - 1], // 节点填充
+    hdr: r[fillStep], // 表头 / 分组标题
+    badge: r[fillStep + 1],
+    border: r[6], // step 7
+    faint: r[7], // step 8
+    sub: r[10], // step 11
+    text: r[11], // step 12
+    pie: r[6], // 饼图等大面积色块
+  }
+}
+function blockTheme(base, hues, decisionHue, fillStep = 3) {
+  const blocks = hues.map((h) => block(h, fillStep))
+  const decision = block(decisionHue, 3) // 判断节点：固定较浅的琥珀色，避免过亮
+  return { ...base, surface: blocks[0].fill, border: blocks[0].border, soft: true, blocks, decision }
+}
+// 5 个非纯白底的低饱和色块主题；配色来源见 README「配色致谢」
+export const BLOCK_THEMES = {
+  // Notion：暖米白底 + Notion 风浅色块（灰/棕/橙/黄/绿/蓝/紫/粉）
+  'notion-blocks': blockTheme({ bg: '#F7F6F3', fg: '#37352F', line: '#B4B2AD', accent: '#8F8D88', muted: '#787774' },
+    ['blue', 'green', 'orange', 'purple', 'pink', 'brown', 'sand'], 'amber'),
+  // Catppuccin Latte：base #EFF1F5，mauve/blue/green/peach/pink/teal/lavender
+  'latte-blocks': blockTheme({ bg: '#EFF1F5', fg: '#4C4F69', line: '#ACB0BE', accent: '#7C7F93', muted: '#6C6F85' },
+    ['violet', 'blue', 'green', 'orange', 'pink', 'teal', 'iris'], 'amber', 4),
+  // Rosé Pine Dawn：base #FAF4ED，pine/iris/rose/foam/love
+  'rose-pine-dawn': blockTheme({ bg: '#FAF4ED', fg: '#575279', line: '#B9B4BF', accent: '#797593', muted: '#797593' },
+    ['teal', 'plum', 'tomato', 'cyan', 'crimson', 'mauve'], 'amber'),
+  // Nord Snow Storm：#ECEFF4 + Frost / Aurora
+  'nord-snow': blockTheme({ bg: '#ECEFF4', fg: '#2E3440', line: '#A3ABBA', accent: '#5E81AC', muted: '#4C566A' },
+    ['blue', 'cyan', 'grass', 'plum', 'orange', 'indigo', 'teal'], 'amber', 4),
+  // Solarized Light：base3 #FDF6E3，blue/cyan/green/violet/orange/magenta/red
+  'solarized-paper': blockTheme({ bg: '#FDF6E3', fg: '#073642', line: '#93A1A1', accent: '#586E75', muted: '#657B83' },
+    ['blue', 'cyan', 'grass', 'violet', 'orange', 'pink', 'tomato'], 'amber'),
+}
+
 export const DEFAULT_THEME = 'feishu-light'
-export const THEMES = { ...CUSTOM_THEMES, ...BM_THEMES }
+export const THEMES = { ...CUSTOM_THEMES, ...BLOCK_THEMES, ...BM_THEMES }
 export const THEME_LABELS = {
   'feishu-light': '飞书白（默认）', 'feishu-gray': '飞书浅灰', 'soft-sage': '淡雅灰绿',
+  'notion-blocks': 'Notion 色块', 'latte-blocks': 'Catppuccin Latte 色块', 'rose-pine-dawn': 'Rosé Pine Dawn 色块', 'nord-snow': 'Nord 雪原色块', 'solarized-paper': 'Solarized 纸色块',
   'zinc-light': '简洁浅色', 'github-light': 'GitHub 浅色', 'nord-light': 'Nord 浅色', 'tokyo-night-light': 'Tokyo Night 浅色',
   'catppuccin-latte': 'Catppuccin Latte', 'solarized-light': 'Solarized 浅色', 'zinc-dark': '简洁深色', 'github-dark': 'GitHub 深色',
   'tokyo-night': 'Tokyo Night', 'tokyo-night-storm': 'Tokyo Night Storm', 'catppuccin-mocha': 'Catppuccin Mocha', nord: 'Nord',
   dracula: 'Dracula', 'solarized-dark': 'Solarized 深色', 'one-dark': 'One Dark',
 }
-export const themeColors = (t) => { const { soft, ...c } = t; return c }
+export const themeColors = (t) => { const { soft, blocks, decision, ...c } = t; return c }
 export function themeList() {
   return Object.keys(THEME_LABELS).filter((id) => THEMES[id]).map((id) => ({ id, name: THEME_LABELS[id], background: THEMES[id].bg, dark: isDark(THEMES[id].bg) }))
 }
@@ -85,7 +127,115 @@ function postProcessBM(svg) {
 export function renderBM(code, themeId) {
   const theme = THEMES[themeId] || THEMES[DEFAULT_THEME]
   const raw = renderMermaidSVG(preprocessBM(code), { ...themeColors(theme), font: FONT_TOKEN })
-  return normalizeRootString(postProcessBM(raw), theme.bg)
+  const svg = theme.blocks ? colorize(postProcessBM(raw), theme, code) : postProcessBM(raw)
+  return normalizeRootString(svg, theme.bg)
+}
+
+// ---------- 色块上色（后处理 SVG：按分支 / 分组 / 角色给节点不同的浅色块） ----------
+function blockVars(b, kind) {
+  const m = {
+    'var(--_node-fill)': kind === 'box' ? b.tint : b.fill,
+    'var(--_group-hdr)': b.hdr,
+    'var(--_node-stroke)': b.border,
+    'var(--_inner-stroke)': b.border,
+    'var(--_text)': b.text,
+    'var(--_text-sec)': kind === 'subgraph' ? b.sub : b.text,
+    'var(--_text-muted)': b.sub,
+    'var(--_text-faint)': b.faint,
+    'var(--_key-badge)': b.badge,
+    'var(--_group-fill)': b.tint,
+  }
+  return m
+}
+function paint(inner, b, kind) {
+  const m = blockVars(b, kind)
+  return inner.replace(/var\(--_[\w-]+\)/g, (v) => m[v] || v)
+}
+function bbox(inner) {
+  let m = /<rect\b[^>]*?\sx="([-\d.]+)"[^>]*?\sy="([-\d.]+)"[^>]*?\swidth="([\d.]+)"[^>]*?\sheight="([\d.]+)"/.exec(inner)
+  if (m) { const [x, y, w, h] = m.slice(1).map(Number); return { x, y, w, h } }
+  m = /<polygon\b[^>]*?\spoints="([^"]+)"/.exec(inner)
+  if (m) {
+    const pts = m[1].trim().split(/\s+/).map((p) => p.split(',').map(Number))
+    const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1])
+    const x = Math.min(...xs), y = Math.min(...ys)
+    return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y }
+  }
+  m = /<circle\b[^>]*?\scx="([-\d.]+)"[^>]*?\scy="([-\d.]+)"[^>]*?\sr="([\d.]+)"/.exec(inner)
+  if (m) { const [cx, cy, r] = m.slice(1).map(Number); return { x: cx - r, y: cy - r, w: 2 * r, h: 2 * r } }
+  return null
+}
+const GROUP_RE = /<g class="(node|subgraph|actor|class-node|entity)"([^>]*)>([\s\S]*?)<\/g>/g
+const dataAttr = (attrs, name) => { const m = new RegExp(`data-${name}="([^"]*)"`).exec(attrs); return m ? m[1] : null }
+
+export function colorize(svg, theme, code = '') {
+  const blocks = theme.blocks
+  const groups = []
+  for (const m of svg.matchAll(GROUP_RE)) {
+    groups.push({ kind: m[1], id: dataAttr(m[2], 'id'), shape: dataAttr(m[2], 'shape'), box: bbox(m[3]) })
+  }
+  const nodeColor = new Map() // id → block
+  const subColor = new Map()
+  let next = 0
+  const fresh = () => blocks[next++ % blocks.length]
+
+  const nodes = groups.filter((g) => g.kind === 'node')
+  if (nodes.length) {
+    // 分组：每个 subgraph 一种色块，组内节点跟随（取包含它的最小分组）
+    const subs = groups.filter((g) => g.kind === 'subgraph' && g.box)
+    for (const sg of subs.sort((a, b) => a.box.y - b.box.y || a.box.x - b.box.x)) subColor.set(sg.id, fresh())
+    const inside = (n) => {
+      if (!n.box) return null
+      const cx = n.box.x + n.box.w / 2, cy = n.box.y + n.box.h / 2
+      let best = null
+      for (const sg of subs) {
+        const b = sg.box
+        if (cx > b.x && cx < b.x + b.w && cy > b.y && cy < b.y + b.h && (!best || b.w * b.h < best.box.w * best.box.h)) best = sg
+      }
+      return best
+    }
+    for (const n of nodes) { const sg = inside(n); if (sg) nodeColor.set(n.id, subColor.get(sg.id)) }
+    // 分支：从根节点出发，单出边沿用父色，分叉时每个分支换一种色块
+    const out = new Map(), indeg = new Map()
+    for (const m of svg.matchAll(/class="edge"[^>]*?data-from="([^"]*)"[^>]*?data-to="([^"]*)"/g)) {
+      if (!out.has(m[1])) out.set(m[1], [])
+      if (!out.get(m[1]).includes(m[2])) out.get(m[1]).push(m[2])
+      indeg.set(m[2], (indeg.get(m[2]) || 0) + 1)
+    }
+    const byPos = [...nodes].sort((a, b) => (a.box?.y ?? 0) - (b.box?.y ?? 0) || (a.box?.x ?? 0) - (b.box?.x ?? 0))
+    const plain = (id) => { const n = nodes.find((x) => x.id === id); return n && /^state-(start|end)$/.test(n.shape || '') }
+    const visit = (start) => {
+      const queue = [start]
+      while (queue.length) {
+        const u = queue.shift()
+        const kids = (out.get(u) || []).filter((k) => !nodeColor.has(k))
+        for (const k of kids) {
+          nodeColor.set(k, kids.length === 1 && !plain(u) ? nodeColor.get(u) : fresh())
+          queue.push(k)
+        }
+      }
+    }
+    for (const n of byPos) {
+      if (nodeColor.has(n.id) || (indeg.get(n.id) || 0) > 0) continue
+      if (!plain(n.id)) nodeColor.set(n.id, fresh()); else nodeColor.set(n.id, null)
+      visit(n.id)
+    }
+    for (const n of byPos) if (!nodeColor.has(n.id)) { nodeColor.set(n.id, fresh()); visit(n.id) }
+  }
+  // 时序图参与者 / 类 / ER 实体：按出现顺序轮换色块
+  const roleColor = new Map()
+  for (const g of groups) if (['actor', 'class-node', 'entity'].includes(g.kind) && !roleColor.has(g.id)) roleColor.set(g.id, blocks[roleColor.size % blocks.length])
+
+  return svg.replace(GROUP_RE, (whole, kind, attrs, inner) => {
+    const id = dataAttr(attrs, 'id'), shape = dataAttr(attrs, 'shape')
+    let b = null, k = kind
+    if (kind === 'subgraph') b = subColor.get(id)
+    else if (kind === 'node') {
+      if (/^state-(start|end)$/.test(shape || '')) return whole
+      b = shape === 'diamond' ? theme.decision : nodeColor.get(id)
+    } else { b = roleColor.get(id); k = kind === 'actor' ? 'node' : 'box' }
+    return b ? `<g class="${kind}"${attrs}>${paint(inner, b, k)}</g>` : whole
+  })
 }
 
 // ---------- 根节点（字符串版） ----------

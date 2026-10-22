@@ -52,6 +52,21 @@ function mermaidThemeVars(t) {
   const palette = t.soft
     ? ['#8DA2C4', '#9DBBA4', '#D4B48C', '#AFA1C9', '#C9A0A0', '#94BCC9', '#CFC48E', '#C4A3B8', '#8FB8B1', '#A9AEB6', '#7F93B3', '#A7C29A']
     : ['#3370ff', '#34c724', '#ff8800', '#7f3bf5', '#f54a45', '#14c0ff', '#ffc60a', '#f14bae', '#00b8a9', '#8f959e', '#245bdb', '#2ea121']
+  if (t.blocks) {
+    // 色块主题：饼图用各色块 step 7，甘特图用色块填充 + 边框
+    const bs = [...t.blocks, t.decision]
+    bs.slice(0, 12).forEach((b, i) => { palette[i] = b.pie })
+    const [b0, b1] = t.blocks
+    Object.assign(vars, {
+      primaryColor: b0.fill, primaryBorderColor: b0.border, primaryTextColor: b0.text,
+      sectionBkgColor: b0.tint, sectionBkgColor2: t.bg, altSectionBkgColor: t.bg,
+      taskBkgColor: b0.hdr, taskBorderColor: b0.border, taskTextColor: b0.text, taskTextDarkColor: b0.text, taskTextOutsideColor: fg,
+      activeTaskBkgColor: b1.hdr, activeTaskBorderColor: b1.border,
+      doneTaskBkgColor: t.decision.hdr, doneTaskBorderColor: t.decision.border,
+      gridColor: mix(fg, bg, 0.12), todayLineColor: t.decision.border,
+      pieOuterStrokeColor: t.line, pieStrokeColor: bg,
+    })
+  }
   palette.forEach((c, i) => { vars['pie' + (i + 1)] = c })
   vars.pieSectionTextColor = t.soft ? fg : '#ffffff'
   return vars

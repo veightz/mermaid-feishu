@@ -63,6 +63,11 @@ CORS：`Access-Control-Allow-Origin: *`。无需鉴权。
 | `feishu-light` | 飞书白（**默认**） | `#FFFFFF` | 白底、细线、低饱和，最适合飞书正文 |
 | `feishu-gray` | 飞书浅灰 | `#F5F6F7` | 浅灰底、细线、低饱和 |
 | `soft-sage` | 淡雅灰绿 | `#FFFFFF` | 白底、灰绿点缀 |
+| `notion-blocks` | Notion 色块 | `#F7F6F3` | 暖米白底；节点按分支 / 分组 / 角色填充 Notion 风浅色块（蓝/绿/橙/紫/粉/棕/灰，判断节点为浅琥珀） |
+| `latte-blocks` | Catppuccin Latte 色块 | `#EFF1F5` | Catppuccin Latte 底色 + mauve/blue/green/peach/pink/teal/lavender 浅色块 |
+| `rose-pine-dawn` | Rosé Pine Dawn 色块 | `#FAF4ED` | 暖纸色底 + pine/iris/rose/foam/love 浅色块 |
+| `nord-snow` | Nord 雪原色块 | `#ECEFF4` | Nord Snow Storm 底 + Frost/Aurora 浅色块 |
+| `solarized-paper` | Solarized 纸色块 | `#FDF6E3` | Solarized base3 纸色底 + blue/cyan/green/violet/orange/magenta/red 浅色块 |
 | `zinc-light` | 简洁浅色 | `#FFFFFF` | |
 | `github-light` | GitHub 浅色 | `#FFFFFF` | |
 | `nord-light` | Nord 浅色 | `#ECEFF4` | |
@@ -79,7 +84,9 @@ CORS：`Access-Control-Allow-Origin: *`。无需鉴权。
 | `solarized-dark` | Solarized 深色 | `#002B36` | 深色 |
 | `one-dark` | One Dark | `#282C34` | 深色 |
 
-以 `GET /api/themes` 的返回为准。飞书文档建议用前三个浅色主题。
+以 `GET /api/themes` 的返回为准。飞书文档建议用前三个浅色主题；想要非纯白底、带浅色块填充的效果，用 5 个「色块」主题（`notion-blocks` 等）。
+
+色块主题的规则：流程图 / 状态图按分支着色（从根开始，单线沿用同色，遇到分叉每个分支换一种色块；判断节点固定浅琥珀；同一 subgraph 内的节点同色、分组底色更浅）；时序图每个参与者、类图每个类、ER 图每个实体各一种色块。色块取自 Radix Colors：填充 step 3–4、边框 step 7、文字 step 11–12。
 
 ## 支持的图类型
 
