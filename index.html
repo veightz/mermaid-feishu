@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mermaid 转飞书</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%233370ff'/><path d='M8 10h16M8 16h10M8 22h13' stroke='white' stroke-width='3' stroke-linecap='round'/></svg>" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Mermaid 转飞书 <span class="sub">粘贴 Mermaid → 好看的图 → 一键复制进飞书</span></div>
+    <div class="controls">
+      <label>示例
+        <select id="example"><option value="">选择示例…</option></select>
+      </label>
+      <label>主题
+        <select id="theme"></select>
+      </label>
+      <label>倍率
+        <select id="scale"><option value="2">2x</option><option value="3">3x</option></select>
+      </label>
+    </div>
+  </header>
+  <main class="layout">
+    <section class="pane editor-pane">
+      <div class="pane-head">
+        <span>Mermaid 源码</span>
+        <span class="hint">实时预览 · 自动保存在本机</span>
+      </div>
+      <textarea id="source" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+    </section>
+    <section class="pane preview-pane">
+      <div class="pane-head">
+        <span>预览 <span id="renderer" class="badge"></span> <span id="size" class="size"></span></span>
+        <span class="actions">
+          <button id="copy-png" class="primary" title="复制 PNG 到剪贴板，直接粘贴进飞书">复制 PNG</button>
+          <button id="download-png" title="剪贴板不可用时下载 PNG">下载 PNG</button>
+          <button id="copy-svg">复制 SVG</button>
+          <button id="copy-src" title="给飞书「文本绘图」小组件用">复制源码</button>
+        </span>
+      </div>
+      <div id="error" class="error" hidden></div>
+      <div class="stage-wrap"><div id="stage" class="stage"></div></div>
+      <div class="foot">预览宽度按飞书正文约 820px 显示；PNG 宽度 ≤ 820 × 倍率，超宽的图会等比缩小。</div>
+    </section>
+  </main>
+  <div id="toast" class="toast" hidden></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

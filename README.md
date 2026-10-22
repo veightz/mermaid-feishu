@@ -1,0 +1,64 @@
+# Mermaid 转飞书
+
+把 Markdown 里的 Mermaid 图渲染得好看一点，再一键复制成高清 PNG 粘进飞书文档。
+
+在线使用：<https://mermaid-feishu.pages.dev>
+
+## 怎么用
+
+1. 左边粘贴 Mermaid 源码（不用带 ```` ```mermaid ```` 围栏），右边实时预览。
+2. 右上角选主题、选倍率（2x / 3x）。
+3. 点按钮：
+   - **复制 PNG**：把高清 PNG 写进剪贴板，去飞书文档里直接 `⌘/Ctrl + V`。剪贴板不可用时自动改为下载。
+   - **下载 PNG**：保存成文件，再拖进飞书。
+   - **复制 SVG**：复制 SVG 源码。注意飞书文档的图片不支持 SVG，这个按钮给别的地方用。
+   - **复制源码**：复制 Mermaid 源码，可以贴进飞书自带的「文本绘图」小组件。
+4. 源码会自动保存在本机浏览器（localStorage），刷新不丢。也可以用 `?example=flowchart` 这样的链接直接打开示例。
+
+## 渲染器
+
+全部在浏览器里渲染，不上传任何内容。
+
+| 图类型 | 渲染器 |
+| --- | --- |
+| 流程图 `graph` / `flowchart` | beautiful-mermaid |
+| 时序图 `sequenceDiagram` | beautiful-mermaid |
+| 状态图 `stateDiagram-v2` | beautiful-mermaid |
+| 类图 `classDiagram` | beautiful-mermaid |
+| ER 图 `erDiagram` | beautiful-mermaid |
+| XY 图 `xychart-beta` | beautiful-mermaid |
+| 其他（甘特图、饼图、思维导图、时间线、Git 图……） | 回退官方 mermaid.js（主题颜色按所选主题生成） |
+
+beautiful-mermaid 报错时也会回退 mermaid.js。预览标题旁的小标签会显示这次用的是哪个渲染器。
+beautiful-mermaid 对看不懂的行会静默跳过，所以页面还会用官方解析器再检查一遍，有问题时显示黄色「语法提示」。
+
+## PNG 尺寸与中文字体
+
+- 飞书正文宽约 820px。PNG 的宽度 = min(图原始宽度, 820) × 倍率；更宽的图等比缩小。
+- SVG 转 PNG 时浏览器拿不到网页字体，所以统一用系统中文字体栈：
+  `PingFang SC / Hiragino Sans GB / Microsoft YaHei / Noto Sans CJK SC / Source Han Sans SC …`
+  macOS、Windows、装了 Noto CJK 的 Linux 都能清晰显示中文。beautiful-mermaid 默认的 Google Fonts `@import` 已去掉（国内慢、`<img>` 里也加载不到）。
+
+## 已知限制
+
+- 复制图片到剪贴板需要 HTTPS 和一次点击，并且需要浏览器支持 `ClipboardItem`（Chrome / Edge / Safari 13.1+ / Firefox 127+）。不行时自动下载 PNG。
+- 剪贴板里的 PNG 不带「倍率」信息，飞书按像素宽度显示（最多铺满正文）。小图用 3x 时贴进去会偏大，可以在飞书里拖小。
+- Safari 有时第一次复制会慢一点（要先生成图片）；如果提示失败，再点一次或用「下载 PNG」。
+
+## 开发
+
+```bash
+npm install
+npm run dev      # 本地开发
+npm run build    # 产物在 dist/
+```
+
+推送到 `main` 后，GitHub Actions 会自动构建并部署到 Cloudflare Pages（项目 `mermaid-feishu`），需要仓库 Secrets：`CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`。
+
+## 许可
+
+本项目代码 MIT。依赖：
+
+- [beautiful-mermaid](https://github.com/lukilabs/beautiful-mermaid)（MIT，Craft Docs）
+- [mermaid](https://github.com/mermaid-js/mermaid)（MIT）
+- [Vite](https://vitejs.dev)（MIT，仅构建用）
