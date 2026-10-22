@@ -52,7 +52,9 @@ curl -s https://mermaid-feishu.pages.dev/api/render -H 'Content-Type: applicatio
 
 ## PNG 尺寸与中文字体
 
-- 飞书正文宽约 820px。PNG 的宽度 = min(图原始宽度, 820) × 倍率；更宽的图等比缩小。
+- PNG 尺寸 = 图的原始尺寸 × 倍率（2x / 3x），不再缩到 820px 宽，所以宽图也清晰。
+- 最长边上限 4096px：超出时等比缩小，界面上会显示实际倍率（例如「实际 2.57x」）。
+- 飞书正文宽约 820px，贴进去的图会缩到正文宽度。原始宽度超过约 1200px 的图，贴进去后字会明显变小；网页会给出提示，`flowchart LR` / `RL` 的图建议改成 `TB`。
 - SVG 转 PNG 时浏览器拿不到网页字体，所以统一用系统中文字体栈：
   `PingFang SC / Hiragino Sans GB / Microsoft YaHei / Noto Sans CJK SC / Source Han Sans SC …`
   macOS、Windows、装了 Noto CJK 的 Linux 都能清晰显示中文。beautiful-mermaid 默认的 Google Fonts `@import` 已去掉（国内慢、`<img>` 里也加载不到）。

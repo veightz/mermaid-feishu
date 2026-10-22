@@ -6,12 +6,16 @@ export function svgSize(svgText) {
   return { w: parseFloat(svg.getAttribute('width')) || 0, h: parseFloat(svg.getAttribute('height')) || 0 }
 }
 
-/** 计算 PNG 像素尺寸：宽度不超过 820 CSS px，再乘倍率 */
+/** PNG 最长边上限（像素） */
+export const PNG_MAX_SIDE = 4096
+
+/** 计算 PNG 像素尺寸：图的原始尺寸 × 倍率；最长边超过 4096px 时等比缩小，返回实际倍率 */
 export function pngSize(svgText, scale) {
   const { w, h } = svgSize(svgText)
-  const cssW = Math.min(w, FEISHU_WIDTH)
-  const ratio = w ? cssW / w : 1
-  return { width: Math.round(cssW * scale), height: Math.round(h * ratio * scale), cssW, ratio }
+  const longest = Math.max(w, h) || 1
+  const eff = Math.min(scale, PNG_MAX_SIDE / longest)
+  const capped = eff < scale - 1e-9
+  return { width: Math.round(w * eff), height: Math.round(h * eff), naturalW: w, naturalH: h, scale: eff, capped }
 }
 
 function loadImage(src) {

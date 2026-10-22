@@ -1,13 +1,13 @@
 import './style.css'
 import { render, validate, THEMES, DEFAULT_THEME } from './render.js'
 import { EXAMPLES } from './examples.js'
-import { pngSize, svgToPngBlob, copyPng, copyText, download, cleanSvg, buildHtmlWidget, HTML_WIDGET_LIMIT } from './export.js'
-import { THEME_LABELS } from './shared/core.js'
+import { pngSize, svgSize, svgToPngBlob, copyPng, copyText, download, cleanSvg, buildHtmlWidget, HTML_WIDGET_LIMIT, PNG_MAX_SIDE } from './export.js'
+import { THEME_LABELS, firstLine } from './shared/core.js'
 
 const $ = (id) => document.getElementById(id)
 const els = {
   source: $('source'), stage: $('stage'), error: $('error'), renderer: $('renderer'), size: $('size'),
-  theme: $('theme'), scale: $('scale'), example: $('example'), toast: $('toast'),
+  theme: $('theme'), scale: $('scale'), wideHint: $('wide-hint'), example: $('example'), toast: $('toast'),
   copyPng: $('copy-png'), downloadPng: $('download-png'), copySvg: $('copy-svg'), copySrc: $('copy-src'), copyHtml: $('copy-html'),
 }
 const LS = { src: 'mf.source', theme: 'mf.theme', scale: 'mf.scale' }
@@ -48,7 +48,7 @@ async function update() {
   const code = els.source.value
   store(LS.src, code)
   if (!code.trim()) {
-    els.stage.innerHTML = ''; els.error.hidden = true; setOk(false); els.renderer.textContent = ''; els.size.textContent = ''
+    els.stage.innerHTML = ''; els.error.hidden = true; els.wideHint.hidden = true; setOk(false); els.renderer.textContent = ''; els.size.textContent = ''
     return
   }
   try {
@@ -75,6 +75,7 @@ async function update() {
     }
     delete document.body.dataset.warn
     updateSize()
+    updateWideHint(code)
     setOk(true)
     document.body.dataset.renderer = res.renderer
     document.body.dataset.status = 'ok'
@@ -84,6 +85,7 @@ async function update() {
     els.error.classList.remove('warn')
     els.error.textContent = '语法错误：' + (e.message || e)
     setOk(false)
+    els.wideHint.hidden = true
     document.body.dataset.status = 'error'
   }
 }
@@ -94,7 +96,21 @@ function setOk(ok) {
 function updateSize() {
   if (!state.svg) return
   const s = pngSize(state.svg, state.scale)
-  els.size.textContent = `PNG ${s.width}×${s.height}px（${state.scale}x${s.ratio < 1 ? '，已缩小适配 820px' : ''}）`
+  els.size.textContent = `PNG ${s.width}×${s.height}px（${s.capped ? `实际 ${s.scale.toFixed(2)}x，最长边已限制为 ${PNG_MAX_SIDE}px` : `${state.scale}x`}）`
+  els.size.title = s.capped ? `按 ${state.scale}x 会超过 ${PNG_MAX_SIDE}px，已等比缩小到 ${s.scale.toFixed(2)}x` : '图的原始尺寸 × 倍率'
+  document.body.dataset.pngScale = s.scale.toFixed(3)
+}
+/** 宽图提示：原始宽度 > 1200px 时显示；LR/RL 流程图建议改成 TB */
+const WIDE_LIMIT = 1200
+function updateWideHint(code) {
+  const { w } = svgSize(state.svg)
+  if (w <= WIDE_LIMIT) { els.wideHint.hidden = true; delete document.body.dataset.wide; return }
+  const m = /^(?:flowchart|graph)\s+(LR|RL)\b/i.exec(firstLine(code.replace(/^\s*---\r?\n[\s\S]*?\r?\n---[ \t]*\r?\n/, '')))
+  els.wideHint.textContent = m
+    ? `图较宽，贴进飞书后字会变小，可以把 \`${m[1].toUpperCase()}\` 改成 \`TB\``
+    : `图较宽（约 ${Math.round(w)}px），贴进飞书后字会变小，可以考虑拆成几张小图或减少同一行的节点`
+  els.wideHint.hidden = false
+  document.body.dataset.wide = m ? 'lr' : 'generic'
 }
 
 let timer = null
@@ -117,7 +133,7 @@ els.example.addEventListener('change', () => {
 })
 
 // ---------- 复制 / 下载 ----------
-function pngName() { return `mermaid-${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')}@${state.scale}x.png` }
+function pngName() { return `mermaid-${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')}@${+pngSize(state.svg, state.scale).scale.toFixed(2)}x.png` }
 function flat() {
   if (!state.flat) state.flat = cleanSvg(state.svg, THEMES[state.theme].bg)
   return state.flat

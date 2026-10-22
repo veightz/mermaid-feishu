@@ -9,7 +9,7 @@ description: 把 Mermaid 源码渲染成适合飞书文档的好看 SVG 或自�
 
 - **SVG**：干净的独立 SVG（`xmlns` / `viewBox` / `width` / `height` 齐全，颜色已全部写死，无 CSS 变量、无外部字体、无 `foreignObject`），适合导入**飞书画板**。
 - **HTML**：自包含 HTML（内联 SVG + 内联样式 + 系统中文字体，无外部脚本/字体），居中、按 820px 自适应，背景跟随主题，适合贴进**飞书 HTML 小组件**（上限 500KB）。
-- **PNG**：API 不提供。请让用户打开网页 <https://mermaid-feishu.pages.dev> 点「复制 PNG」，直接粘进飞书正文（飞书文档的图片不支持 SVG）。
+- **PNG**：API 不提供。请让用户打开网页 <https://mermaid-feishu.pages.dev> 点「复制 PNG」，直接粘进飞书正文（飞书文档的图片不支持 SVG）。网页导出的 PNG = 图的原始尺寸 × 倍率（2x/3x），最长边不超过 4096px（超出等比缩小）。飞书正文约 820px 宽，原始宽度 > 1200px 的图贴进去字会变小：生成 `flowchart LR` 时，如果节点多、链条长，优先用 `flowchart TB`。
 
 渲染器：服务端只用 [beautiful-mermaid](https://github.com/lukilabs/beautiful-mermaid)（MIT，纯 TypeScript、无 DOM）。网页版额外支持回退官方 mermaid.js。
 
