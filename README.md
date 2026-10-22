@@ -9,6 +9,7 @@
 1. 左边粘贴 Mermaid 源码（不用带 ```` ```mermaid ```` 围栏），右边实时预览。
 2. 右上角选主题、选倍率（2x / 3x）。默认主题是「飞书白」。
    - 浅色（细线、低饱和，适合飞书文档）：`feishu-light` 飞书白（默认，白底）、`feishu-gray` 飞书浅灰（浅灰底）、`soft-sage` 淡雅灰绿
+   - 画板风：`feishu-blue` 飞书画板蓝（白底、统一浅蓝圆角块、判断节点为蓝色虚线圆角框、细灰圆角连线、「是/否」胶囊标签，仿飞书画板流程图）
    - 色块（非纯白底，节点按分支 / 分组 / 角色填充低饱和浅色块）：`notion-blocks` Notion 色块、`latte-blocks` Catppuccin Latte 色块、`rose-pine-dawn` Rosé Pine Dawn 色块、`nord-snow` Nord 雪原色块、`solarized-paper` Solarized 纸色块
    - beautiful-mermaid 自带 15 个：`zinc-light` `github-light` `nord-light` `tokyo-night-light` `catppuccin-latte` `solarized-light` `zinc-dark` `github-dark` `tokyo-night` `tokyo-night-storm` `catppuccin-mocha` `nord` `dracula` `solarized-dark` `one-dark`
 3. 点按钮：

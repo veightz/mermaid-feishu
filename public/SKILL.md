@@ -63,6 +63,7 @@ CORS：`Access-Control-Allow-Origin: *`。无需鉴权。
 | `feishu-light` | 飞书白（**默认**） | `#FFFFFF` | 白底、细线、低饱和，最适合飞书正文 |
 | `feishu-gray` | 飞书浅灰 | `#F5F6F7` | 浅灰底、细线、低饱和 |
 | `soft-sage` | 淡雅灰绿 | `#FFFFFF` | 白底、灰绿点缀 |
+| `feishu-blue` | 飞书画板蓝 | `#FFFFFF` | 仿飞书画板流程图：统一浅蓝圆角块 `#DCE9F7`（无明显边框）、蓝色文字；判断节点画成白底蓝色虚线圆角框（不是菱形）；细灰正交连线 + 圆角拐弯 + 小开口箭头；「是/否」为白底蓝边胶囊。单色，不分支着色 |
 | `notion-blocks` | Notion 色块 | `#F7F6F3` | 暖米白底；节点按分支 / 分组 / 角色填充 Notion 风浅色块（蓝/绿/橙/紫/粉/棕/灰，判断节点为浅琥珀） |
 | `latte-blocks` | Catppuccin Latte 色块 | `#EFF1F5` | Catppuccin Latte 底色 + mauve/blue/green/peach/pink/teal/lavender 浅色块 |
 | `rose-pine-dawn` | Rosé Pine Dawn 色块 | `#FAF4ED` | 暖纸色底 + pine/iris/rose/foam/love 浅色块 |

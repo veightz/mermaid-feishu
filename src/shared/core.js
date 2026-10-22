@@ -54,17 +54,36 @@ export const BLOCK_THEMES = {
     ['blue', 'cyan', 'grass', 'violet', 'orange', 'pink', 'tomato'], 'amber'),
 }
 
+// 飞书画板蓝：仿飞书画板流程图——白底、统一浅蓝圆角块（无边框）、判断节点白底蓝色虚线圆角框、
+// 细灰正交连线 + 圆角拐弯 + 小开口箭头、「是/否」为白底蓝边胶囊。单色，不做分支多色。
+export const BOARD_THEMES = {
+  'feishu-blue': {
+    bg: '#FFFFFF', fg: '#1F3A5F', line: '#A5ABB5', accent: '#9AA1AC', muted: '#4A6A92', surface: '#DCE9F7', border: '#D3E3F5',
+    soft: true,
+    opts: { padding: 56, nodeSpacing: 32, layerSpacing: 56 },
+    board: {
+      node: '#DCE9F7', nodeStroke: '#D3E3F5', text: '#1A5DB0', radius: 8,
+      decisionFill: '#FFFFFF', decisionStroke: '#3B82E0', decisionDash: '3 2',
+      chipFill: '#FFFFFF', chipStroke: '#3B82E0', chipText: '#1A5DB0',
+      hdr: '#CADCF2', inner: '#E1EBF7', badge: '#C3D7F0', line: '#A5ABB5', arrow: '#9AA1AC', corner: 8,
+    },
+    // 仅给 mermaid.js 回退（甘特图/饼图）用的蓝色系色板
+    blocks: ['blue', 'sky', 'indigo', 'cyan', 'iris', 'teal'].map((h) => block(h, 3)),
+    decision: block('blue', 3),
+  },
+}
+
 export const DEFAULT_THEME = 'feishu-light'
-export const THEMES = { ...CUSTOM_THEMES, ...BLOCK_THEMES, ...BM_THEMES }
+export const THEMES = { ...CUSTOM_THEMES, ...BOARD_THEMES, ...BLOCK_THEMES, ...BM_THEMES }
 export const THEME_LABELS = {
   'feishu-light': '飞书白（默认）', 'feishu-gray': '飞书浅灰', 'soft-sage': '淡雅灰绿',
-  'notion-blocks': 'Notion 色块', 'latte-blocks': 'Catppuccin Latte 色块', 'rose-pine-dawn': 'Rosé Pine Dawn 色块', 'nord-snow': 'Nord 雪原色块', 'solarized-paper': 'Solarized 纸色块',
+  'feishu-blue': '飞书画板蓝', 'notion-blocks': 'Notion 色块', 'latte-blocks': 'Catppuccin Latte 色块', 'rose-pine-dawn': 'Rosé Pine Dawn 色块', 'nord-snow': 'Nord 雪原色块', 'solarized-paper': 'Solarized 纸色块',
   'zinc-light': '简洁浅色', 'github-light': 'GitHub 浅色', 'nord-light': 'Nord 浅色', 'tokyo-night-light': 'Tokyo Night 浅色',
   'catppuccin-latte': 'Catppuccin Latte', 'solarized-light': 'Solarized 浅色', 'zinc-dark': '简洁深色', 'github-dark': 'GitHub 深色',
   'tokyo-night': 'Tokyo Night', 'tokyo-night-storm': 'Tokyo Night Storm', 'catppuccin-mocha': 'Catppuccin Mocha', nord: 'Nord',
   dracula: 'Dracula', 'solarized-dark': 'Solarized 深色', 'one-dark': 'One Dark',
 }
-export const themeColors = (t) => { const { soft, blocks, decision, ...c } = t; return c }
+export const themeColors = (t) => { const { soft, blocks, decision, board, opts, ...c } = t; return { ...c, ...(opts || {}) } }
 export function themeList() {
   return Object.keys(THEME_LABELS).filter((id) => THEMES[id]).map((id) => ({ id, name: THEME_LABELS[id], background: THEMES[id].bg, dark: isDark(THEMES[id].bg) }))
 }
@@ -127,7 +146,7 @@ function postProcessBM(svg) {
 export function renderBM(code, themeId) {
   const theme = THEMES[themeId] || THEMES[DEFAULT_THEME]
   const raw = renderMermaidSVG(preprocessBM(code), { ...themeColors(theme), font: FONT_TOKEN })
-  const svg = theme.blocks ? colorize(postProcessBM(raw), theme, code) : postProcessBM(raw)
+  const svg = theme.board ? boardStyle(postProcessBM(raw), theme) : theme.blocks ? colorize(postProcessBM(raw), theme, code) : postProcessBM(raw)
   return normalizeRootString(svg, theme.bg)
 }
 
@@ -438,3 +457,125 @@ ${inline}
 }
 
 export function byteLength(s) { return new TextEncoder().encode(s).length }
+
+
+// ---------- 飞书画板风（board 主题）后处理 ----------
+const num = (v) => Math.round(v * 100) / 100
+function parsePoints(str) { return str.trim().split(/\s+/).map((p) => p.split(',').map(Number)) }
+function roundedPath(pts, r) {
+  if (pts.length < 2) return ''
+  let d = `M ${num(pts[0][0])} ${num(pts[0][1])}`
+  for (let i = 1; i < pts.length - 1; i++) {
+    const [px, py] = pts[i - 1], [x, y] = pts[i], [nx, ny] = pts[i + 1]
+    const l1 = Math.hypot(x - px, y - py), l2 = Math.hypot(nx - x, ny - y)
+    const rr = Math.min(r, l1 / 2, l2 / 2)
+    if (rr < 0.5) { d += ` L ${num(x)} ${num(y)}`; continue }
+    const ax = x - ((x - px) / l1) * rr, ay = y - ((y - py) / l1) * rr
+    const bx = x + ((nx - x) / l2) * rr, by = y + ((ny - y) / l2) * rr
+    d += ` L ${num(ax)} ${num(ay)} Q ${num(x)} ${num(y)} ${num(bx)} ${num(by)}`
+  }
+  const [lx, ly] = pts[pts.length - 1]
+  return d + ` L ${num(lx)} ${num(ly)}`
+}
+function estTextWidth(t, size = 13) {
+  let w = 0
+  for (const ch of t) w += /[\u2E80-\uFFFF]/.test(ch) ? size : /[A-Z]/.test(ch) ? size * 0.68 : size * 0.56
+  return w
+}
+const decodeEnt = (s) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
+
+/** 把连接判断节点的端点挪到新圆角矩形的边上；必要时加一个小折线，保持正交 */
+function reattach(pts, rect, dia) {
+  // pts[0] 是贴着节点的端点
+  if (pts.length < 2) return pts
+  const [e, q] = pts
+  const cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2
+  const horizontal = Math.abs(e[1] - q[1]) < 0.5
+  const vertical = Math.abs(e[0] - q[0]) < 0.5
+  if (horizontal) {
+    const side = q[0] < cx ? rect.x : rect.x + rect.w
+    const sy = (rect.h / 2 - 8) / (dia.h / 2 || 1)
+    const yt = cy + (e[1] - cy) * Math.max(0, Math.min(1, sy))
+    if (Math.abs(yt - e[1]) < 0.5) return [[side, e[1]], ...pts.slice(1)]
+    const dir = q[0] < cx ? -1 : 1
+    let xk = side + dir * 14
+    if ((q[0] - xk) * dir < 4) xk = (q[0] + side) / 2
+    return [[side, yt], [xk, yt], [xk, e[1]], ...pts.slice(1)]
+  }
+  if (vertical) {
+    const side = q[1] < cy ? rect.y : rect.y + rect.h
+    const sx = (rect.w / 2 - 10) / (dia.w / 2 || 1)
+    const xt = cx + (e[0] - cx) * Math.max(0, Math.min(1, sx))
+    if (Math.abs(xt - e[0]) < 0.5) return [[e[0], side], ...pts.slice(1)]
+    const dir = q[1] < cy ? -1 : 1
+    let yk = side + dir * 14
+    if ((q[1] - yk) * dir < 4) yk = (q[1] + side) / 2
+    return [[xt, side], [xt, yk], [e[0], yk], ...pts.slice(1)]
+  }
+  return pts
+}
+
+export function boardStyle(svg, theme) {
+  const B = theme.board
+  // 1) 判断节点：菱形 → 白底蓝色虚线圆角矩形
+  const decisions = new Map()
+  svg = svg.replace(/<g class="node"([^>]*data-shape="diamond"[^>]*)>([\s\S]*?)<\/g>/g, (whole, attrs, inner) => {
+    const id = dataAttr(attrs, 'id')
+    const dia = bbox(inner)
+    if (!dia) return whole
+    const texts = inner.match(/<text\b[^>]*>[\s\S]*?<\/text>/g) || []
+    const label = decodeEnt((dataAttr(attrs, 'label') || '').replace(/<br\s*\/?>/g, '\n'))
+    const longest = Math.max(...label.split('\n').map((l) => estTextWidth(l)), 40)
+    const w = Math.min(dia.w, Math.max(longest + 48, 110))
+    const h = Math.max(44, texts.length * 18 + 26)
+    const rect = { x: dia.x + (dia.w - w) / 2, y: dia.y + (dia.h - h) / 2, w, h }
+    decisions.set(id, { rect, dia })
+    const shape = `<rect x="${num(rect.x)}" y="${num(rect.y)}" width="${num(w)}" height="${num(h)}" rx="${B.radius}" ry="${B.radius}" fill="${B.decisionFill}" stroke="${B.decisionStroke}" stroke-width="1" stroke-dasharray="${B.decisionDash}" />`
+    const t = texts.map((x) => x.replace(/fill="[^"]*"/, `fill="${B.text}"`)).join('\n  ')
+    return `<g class="node"${attrs}>\n  ${shape}\n  ${t}\n</g>`
+  })
+  // 2) 普通节点：统一浅蓝圆角块，几乎无边框；文字蓝色
+  svg = svg.replace(/<g class="node"([^>]*)>([\s\S]*?)<\/g>/g, (whole, attrs, inner) => {
+    const shape = dataAttr(attrs, 'shape') || ''
+    if (shape === 'diamond' || /^state-(start|end)$/.test(shape)) return whole
+    inner = inner
+      .replace(/fill="var\(--_node-fill\)"/g, `fill="${B.node}"`)
+      .replace(/stroke="var\(--_node-stroke\)"/g, `stroke="${B.nodeStroke}"`)
+      .replace(/fill="var\(--_text\)"/g, `fill="${B.text}"`)
+    if (shape === 'rectangle' || shape === 'rounded' || shape === '') inner = inner.replace(/(<rect\b[^>]*?)\srx="[^"]*"\s+ry="[^"]*"/, `$1 rx="${B.radius}" ry="${B.radius}"`)
+    return `<g class="node"${attrs}>${inner}</g>`
+  })
+  // 3) 连线：端点贴到判断节点新边框上；正交折线 → 圆角路径
+  svg = svg.replace(/<polyline class="edge"([^>]*?)\spoints="([^"]*)"([^>]*?)\/>/g, (whole, a1, pts, a2) => {
+    const attrs = a1 + a2
+    let p = parsePoints(pts)
+    const from = decisions.get(dataAttr(attrs, 'from')), to = decisions.get(dataAttr(attrs, 'to'))
+    if (from) p = reattach(p, from.rect, from.dia)
+    if (to) p = reattach(p.slice().reverse(), to.rect, to.dia).reverse()
+    const rest = attrs.replace(/\sstroke="[^"]*"/, '').replace(/\sfill="[^"]*"/, '')
+    return `<path class="edge"${rest} d="${roundedPath(p, B.corner)}" fill="none" stroke="${B.line}" />`
+  })
+  // 4) 「是/否」标签：白底蓝边胶囊
+  svg = svg.replace(/<g class="edge-label"([^>]*)>([\s\S]*?)<\/g>/g, (whole, attrs, inner) => {
+    inner = inner.replace(/<rect\b([^>]*?)\/>/, (r, ra) => {
+      const g = (n) => parseFloat(new RegExp(`\\s${n}="([-\\d.]+)"`).exec(ra)?.[1] || '0')
+      let x = g('x'), y = g('y'), w = g('width'), h = g('height')
+      const nh = Math.min(h, 22), nw = Math.max(w, nh * 1.9) // 胶囊：高 ≤ 22，宽 ≥ 1.9 倍高
+      x += (w - nw) / 2; y += (h - nh) / 2
+      const keep = ra.replace(/\s(x|y|width|height|rx|ry|fill|stroke|stroke-width)="[^"]*"/g, '')
+      return `<rect${keep} x="${num(x)}" y="${num(y)}" width="${num(nw)}" height="${num(nh)}" rx="${num(nh / 2)}" ry="${num(nh / 2)}" fill="${B.chipFill}" stroke="${B.chipStroke}" stroke-width="1" />`
+    }).replace(/fill="var\(--_text[\w-]*\)"/g, `fill="${B.chipText}"`).replace(/font-weight="\d+"/, 'font-weight="500"')
+    return `<g class="edge-label"${attrs}>${inner}</g>`
+  })
+  // 5) 小开口箭头
+  const chevron = (id, orient) => `<marker id="${id}" markerWidth="8" markerHeight="8" refX="6.5" refY="4" orient="${orient}" markerUnits="userSpaceOnUse">
+    <polyline points="2 1.2, 6.5 4, 2 6.8" fill="none" stroke="${B.arrow}" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" />
+  </marker>`
+  svg = svg.replace(/<marker id="arrowhead"[\s\S]*?<\/marker>/, chevron('arrowhead', 'auto'))
+    .replace(/<marker id="arrowhead-start"[\s\S]*?<\/marker>/, chevron('arrowhead-start', 'auto-start-reverse'))
+  // 6) 其他图（时序/类/ER/状态）：表头、内线、徽标改成蓝色系
+  return svg
+    .replace(/var\(--_group-hdr\)/g, B.hdr)
+    .replace(/var\(--_inner-stroke\)/g, B.inner)
+    .replace(/var\(--_key-badge\)/g, B.badge)
+}
