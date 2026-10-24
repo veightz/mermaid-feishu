@@ -98,9 +98,53 @@ export const THEME_LABELS = {
   'tokyo-night': 'Tokyo Night', 'tokyo-night-storm': 'Tokyo Night Storm', 'catppuccin-mocha': 'Catppuccin Mocha', nord: 'Nord',
   dracula: 'Dracula', 'solarized-dark': 'Solarized 深色', 'one-dark': 'One Dark',
 }
+// ---------- 布局（与配色独立） ----------
+// default = beautiful-mermaid 自带布局；elk = 自带 ELK 分层管线（src/shared/chatgpt.js）。只对 flowchart / graph 生效。
+// 不指定（或 auto）时跟随配色：chatgpt → elk，其他 → default（与拆分前完全一致）。
+export const LAYOUTS = ['default', 'elk']
+export const LAYOUT_LABELS = { default: '默认', elk: 'ELK 分层（ChatGPT 式）' }
+export const themeDefaultLayout = (id) => (isChatGPTTheme(id) ? 'elk' : 'default')
+/** 规范化 layout 参数：undefined/''/auto → null（跟随配色）；合法值 → 小写值；非法 → false */
+export function parseLayout(v) {
+  if (v === undefined || v === null) return null
+  const s = String(v).trim().toLowerCase()
+  if (s === '' || s === 'auto') return null
+  return LAYOUTS.includes(s) ? s : false
+}
+export const resolveLayout = (themeId, layout) => parseLayout(layout) || themeDefaultLayout(themeId)
+
+/** ELK 管线用的配色：chatgpt 返回 null（用 chatgpt.js 里的原值）；其他主题按主题色映射 */
+export function elkPalette(themeId) {
+  const t = THEMES[themeId] || THEMES[DEFAULT_THEME]
+  if (t.chatgpt) return null
+  const { bg, fg } = t
+  const line = t.line || mix(fg, bg, 0.35)
+  const border = t.border || mix(fg, bg, 0.2)
+  const muted = t.muted || mix(fg, bg, 0.65)
+  const accent = t.accent || mix(fg, bg, 0.5)
+  const base = {
+    bg, node: t.surface || mix(fg, bg, 0.06), nodeStroke: border, text: fg,
+    decision: bg, decisionStroke: accent,
+    line, arrow: mix(fg, line, 0.25),
+    chip: bg, chipStroke: border, chipText: muted,
+    group: mix(fg, bg, 0.025), groupStroke: border, groupText: muted,
+    weight: 500,
+  }
+  if (t.board) {
+    const B = t.board
+    return { ...base, node: B.node, nodeStroke: B.nodeStroke, text: B.text, decision: B.decisionFill, decisionStroke: B.decisionStroke,
+      line: B.line, arrow: B.arrow, chip: B.chipFill, chipStroke: B.chipStroke, chipText: B.chipText, groupStroke: B.inner, weight: B.weight }
+  }
+  if (t.blocks) {
+    const b = t.blocks[0], d = t.decision
+    return { ...base, node: b.fill, nodeStroke: b.border, text: b.text, decision: d.fill, decisionStroke: d.border, chipStroke: b.border, chipText: b.sub }
+  }
+  return base
+}
+
 export const themeColors = (t) => { const { soft, blocks, decision, board, opts, chatgpt, ...c } = t; return { ...c, ...(opts || {}) } }
 export function themeList() {
-  return Object.keys(THEME_LABELS).filter((id) => THEMES[id]).map((id) => ({ id, name: THEME_LABELS[id], background: THEMES[id].bg, dark: isDark(THEMES[id].bg) }))
+  return Object.keys(THEME_LABELS).filter((id) => THEMES[id]).map((id) => ({ id, name: THEME_LABELS[id], background: THEMES[id].bg, dark: isDark(THEMES[id].bg), defaultLayout: themeDefaultLayout(id) }))
 }
 
 // 中文优先的系统字体栈：SVG 以 <img> 栅格化或在别处打开时拿不到网页字体，只用系统字体。

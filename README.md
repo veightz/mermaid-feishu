@@ -7,7 +7,7 @@
 ## 怎么用
 
 1. 左边粘贴 Mermaid 源码（不用带 ```` ```mermaid ```` 围栏），右边实时预览。
-2. 右上角选主题、选倍率（2x / 3x）。默认主题是「飞书白」。
+2. 右上角选配色、布局、倍率（2x / 3x）。默认配色是「飞书白」，布局默认「跟随配色」（ChatGPT 配色用 ELK，其他用默认布局；手动选了「默认」或「ELK 分层」就固定用它）。布局只影响流程图 / graph，其他图类型只换配色。
    - 浅色（细线、低饱和，适合飞书文档）：`feishu-light` 飞书白（默认，白底）、`feishu-gray` 飞书浅灰（浅灰底）、`soft-sage` 淡雅灰绿
    - 画板风：`feishu-blue` 飞书画板蓝（白底、统一浅蓝圆角块、判断节点为蓝色虚线圆角框、细灰圆角连线、「是/否」胶囊标签，仿飞书画板流程图）
    - `chatgpt` ChatGPT 风：仿 ChatGPT 对话里的 Mermaid 预览。流程图 / graph 换成 ELK 分层布局（和 ChatGPT 一样的排版和连线走向），其他图类型仍用原渲染器、只换浅蓝配色
@@ -35,11 +35,13 @@
 | XY 图 `xychart-beta` | beautiful-mermaid |
 | 其他（甘特图、饼图、思维导图、时间线、Git 图……） | 回退官方 mermaid.js（主题颜色按所选主题生成） |
 
-选「ChatGPT 风」（`chatgpt`）时，流程图 / graph 改走自带的 ELK 管线（`src/shared/chatgpt.js`）：beautiful-mermaid 只负责解析，
+布局选「ELK 分层」（或配色选「ChatGPT 风」且布局为「跟随配色」）时，流程图 / graph 改走自带的 ELK 管线（`src/shared/chatgpt.js`）：beautiful-mermaid 只负责解析，
 用内置字宽表量字（中日韩字符按 1em，拉丁字母/数字查表），交给 elkjs 0.9.3 的 `layered` 算法布局（选项与 ChatGPT 的 Mermaid 预览一致：
 `BRANDES_KOEPF`、`mergeEdges=false`、`considerModelOrder=NODES_AND_EDGES`、正交连线），再直接输出不含 `foreignObject` 的 SVG。
 整条管线纯 JS、不碰 DOM，网页和 API 跑同一份代码，所以两边输出的 SVG 逐字节相同。这条管线失败时退回 beautiful-mermaid。
 设计参数（圆角 16、内边距 16/36、最小高 60、判断节点虚线框、5px 圆角拐弯、胶囊标签、配色）参考 ChatGPT 的预览样式，代码为本项目自写。
+配色和布局是两个独立开关：ELK 布局搭配其他配色时，节点 / 判断框 / 连线 / 胶囊 / 分组按该主题的颜色映射（色块主题统一用第一种色块，不按分支着色）；
+ChatGPT 配色搭配默认布局时，用 beautiful-mermaid 原布局 + ChatGPT 浅蓝配色。
 
 beautiful-mermaid 报错时也会回退 mermaid.js。预览标题旁的小标签会显示这次用的是哪个渲染器。
 beautiful-mermaid 对看不懂的行会静默跳过，所以页面还会用官方解析器再检查一遍，有问题时显示黄色「语法提示」。
@@ -48,7 +50,7 @@ beautiful-mermaid 对看不懂的行会静默跳过，所以页面还会用官�
 
 无需鉴权、CORS 开放，完整说明见 [SKILL.md](https://mermaid-feishu.pages.dev/SKILL.md)（也有 [llms.txt](https://mermaid-feishu.pages.dev/llms.txt)）。
 
-- `POST /api/render`：JSON `{ code, format: "svg" | "html", theme? }`，返回 `image/svg+xml` 或 `text/html`；`?json=1` 返回 JSON 包装。也支持 `GET /api/render?code=&format=&theme=`。
+- `POST /api/render`：JSON `{ code, format: "svg" | "html", theme?, layout? }`（`layout`：`default` / `elk` / `auto`，不填 = 跟随主题；只影响流程图），返回 `image/svg+xml` 或 `text/html`；`?json=1` 返回 JSON 包装。也支持 `GET /api/render?code=&format=&theme=&layout=`。
 - `GET /api/themes`、`GET /api/health`。
 - 服务端只用 beautiful-mermaid（Cloudflare Pages Functions，代码在 `functions/`，和网页共用 `src/shared/core.js`）。甘特图、饼图等返回 422，请用网页；`format=png` 返回 501（PNG 请在网页上生成）；源码上限 50KB（413）。
 

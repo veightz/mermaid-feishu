@@ -111,8 +111,9 @@ function createElk() {
   if (hide) { try { delete g.self } catch {} }
   try { return new ELK() } finally { if (hide && !('self' in g)) g.self = saved }
 }
-/** Mermaid 流程图 → ChatGPT 风 SVG 字符串（不含 xml 头，颜色都是具体值） */
-export async function renderChatGPTFlowchart(code) {
+/** Mermaid 流程图 → ELK 布局 SVG 字符串（默认 ChatGPT 配色；传 palette 可换配色）（不含 xml 头，颜色都是具体值） */
+export async function renderChatGPTFlowchart(code, palette = null) {
+  const P = palette ? { ...CG, ...palette } : CG // 配色可替换（布局与尺寸参数不变）
   const g = parseMermaid(code)
   if (!g || !g.nodes || !g.nodes.size) throw new Error('没有解析到节点（ChatGPT 风只支持 flowchart / graph）')
   elk = elk || createElk()
@@ -185,7 +186,7 @@ export async function renderChatGPTFlowchart(code) {
   const grow = (x, y, w = 0, h = 0) => { minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x + w); maxY = Math.max(maxY, y + h) }
 
   // 子图
-  const textAttrs = (size, spacing, color) => `font-size="${size}" font-weight="${CG.weight}" letter-spacing="${spacing}" fill="${color}" text-anchor="middle"`
+  const textAttrs = (size, spacing, color) => `font-size="${size}" font-weight="${P.weight}" letter-spacing="${spacing}" fill="${color}" text-anchor="middle"`
   const textBlock = (lines, cx, cy, size, spacing, color) => {
     const lh = size * CG.lineH
     const y0 = cy - ((lines.length - 1) * lh) / 2
@@ -193,8 +194,8 @@ export async function renderChatGPTFlowchart(code) {
   }
   for (const b of groupBoxes) {
     grow(b.x, b.y, b.w, b.h)
-    const lab = b.label?.text ? textBlock(decodeEnt(b.label.text).split(/\n|<br\s*\/?>/i), b.x + b.w / 2, b.y + 8 + (b.label.height - 16) / 2, CG.edgeFont, CG.edgeSpacing, CG.groupText) : ''
-    parts.push(`<g class="cg-group" data-id="${esc(b.id)}"><rect x="${n2(b.x)}" y="${n2(b.y)}" width="${n2(b.w)}" height="${n2(b.h)}" rx="${CG.radius}" ry="${CG.radius}" fill="${CG.group}" stroke="${CG.groupStroke}" stroke-width="1"/>${lab}</g>`)
+    const lab = b.label?.text ? textBlock(decodeEnt(b.label.text).split(/\n|<br\s*\/?>/i), b.x + b.w / 2, b.y + 8 + (b.label.height - 16) / 2, CG.edgeFont, CG.edgeSpacing, P.groupText) : ''
+    parts.push(`<g class="cg-group" data-id="${esc(b.id)}"><rect x="${n2(b.x)}" y="${n2(b.y)}" width="${n2(b.w)}" height="${n2(b.h)}" rx="${CG.radius}" ry="${CG.radius}" fill="${P.group}" stroke="${P.groupStroke}" stroke-width="1"/>${lab}</g>`)
   }
 
   // 连线
@@ -213,14 +214,14 @@ export async function renderChatGPTFlowchart(code) {
     for (const p of pts) grow(p[0], p[1])
     const dash = src.style === 'dotted' ? ' stroke-dasharray="3 3"' : ''
     const sw = src.style === 'thick' ? 2 : 1
-    edgeParts.push(`<path class="cg-edge" data-from="${esc(src.source)}" data-to="${esc(src.target)}" d="${roundedPath(pts, CG.corner)}" fill="none" stroke="${CG.line}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"${dash}/>` +
-      tips.map((t) => `<path d="${t}" fill="none" stroke="${CG.arrow}" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>`).join(''))
+    edgeParts.push(`<path class="cg-edge" data-from="${esc(src.source)}" data-to="${esc(src.target)}" d="${roundedPath(pts, CG.corner)}" fill="none" stroke="${P.line}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"${dash}/>` +
+      tips.map((t) => `<path d="${t}" fill="none" stroke="${P.arrow}" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>`).join(''))
     const lab = e.labels?.[0]
     if (src.label && lab) {
       const x = lab.x + ox, y = lab.y + oy
       const chip = measureChip(src.label)
       grow(x, y, lab.width, lab.height)
-      chipParts.push(`<g class="cg-label"><rect x="${n2(x)}" y="${n2(y)}" width="${n2(lab.width)}" height="${n2(lab.height)}" rx="${CG.chipR}" ry="${CG.chipR}" fill="${CG.chip}" stroke="${CG.chipStroke}" stroke-width="1"/>${textBlock(chip.lines, x + lab.width / 2, y + lab.height / 2, CG.edgeFont, CG.edgeSpacing, CG.chipText)}</g>`)
+      chipParts.push(`<g class="cg-label"><rect x="${n2(x)}" y="${n2(y)}" width="${n2(lab.width)}" height="${n2(lab.height)}" rx="${CG.chipR}" ry="${CG.chipR}" fill="${P.chip}" stroke="${P.chipStroke}" stroke-width="1"/>${textBlock(chip.lines, x + lab.width / 2, y + lab.height / 2, CG.edgeFont, CG.edgeSpacing, P.chipText)}</g>`)
     }
   }
 
@@ -232,15 +233,15 @@ export async function renderChatGPTFlowchart(code) {
     const dec = m.shape === 'diamond' || m.shape === 'hexagon'
     const r = m.shape === 'stadium' || m.shape === 'circle' || m.shape === 'doublecircle' ? Math.min(b.h, b.w) / 2 : CG.radius
     const shape = dec
-      ? `<rect x="${n2(b.x)}" y="${n2(b.y)}" width="${n2(b.w)}" height="${n2(b.h)}" rx="${r}" ry="${r}" fill="${CG.decision}" stroke="${CG.decisionStroke}" stroke-width="1" stroke-dasharray="2 2"/>`
-      : `<rect x="${n2(b.x)}" y="${n2(b.y)}" width="${n2(b.w)}" height="${n2(b.h)}" rx="${n2(r)}" ry="${n2(r)}" fill="${CG.node}" stroke="${CG.nodeStroke}" stroke-width="1"/>`
-    nodeParts.push(`<g class="cg-node" data-id="${esc(id)}" data-shape="${esc(m.shape)}">${shape}${textBlock(m.lines, b.x + b.w / 2, b.y + b.h / 2, CG.nodeFont, CG.nodeSpacing, CG.text)}</g>`)
+      ? `<rect x="${n2(b.x)}" y="${n2(b.y)}" width="${n2(b.w)}" height="${n2(b.h)}" rx="${r}" ry="${r}" fill="${P.decision}" stroke="${P.decisionStroke}" stroke-width="1" stroke-dasharray="2 2"/>`
+      : `<rect x="${n2(b.x)}" y="${n2(b.y)}" width="${n2(b.w)}" height="${n2(b.h)}" rx="${n2(r)}" ry="${n2(r)}" fill="${P.node}" stroke="${P.nodeStroke}" stroke-width="1"/>`
+    nodeParts.push(`<g class="cg-node" data-id="${esc(id)}" data-shape="${esc(m.shape)}">${shape}${textBlock(m.lines, b.x + b.w / 2, b.y + b.h / 2, CG.nodeFont, CG.nodeSpacing, P.text)}</g>`)
   }
 
   const M = CG.margin
   const tx = -minX + M, ty = -minY + M
   const width = Math.ceil(maxX - minX + 2 * M), height = Math.ceil(maxY - minY + 2 * M)
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" style="background-color:${CG.bg}" font-family="${esc(CG.font)}" data-renderer="chatgpt-elk">` +
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" style="background-color:${P.bg}" font-family="${esc(CG.font)}" data-renderer="chatgpt-elk">` +
     `<g transform="translate(${n2(tx)} ${n2(ty)})">` +
     `<g class="cg-groups">${parts.join('')}</g><g class="cg-edges">${edgeParts.join('')}</g><g class="cg-labels">${chipParts.join('')}</g><g class="cg-nodes">${nodeParts.join('')}</g>` +
     `</g></svg>`

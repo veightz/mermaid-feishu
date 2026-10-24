@@ -1,5 +1,5 @@
 import {
-  THEMES, DEFAULT_THEME, CJK_STACK, isBMSupported, renderBM, mix, isDark, isChatGPTTheme,
+  THEMES, DEFAULT_THEME, CJK_STACK, isBMSupported, renderBM, mix, isDark, resolveLayout, elkPalette,
 } from './shared/core.js'
 
 // ChatGPT 风流程图管线（含 elkjs，体积较大）按需加载
@@ -133,14 +133,15 @@ export function normalizeSvg(svgText, bg) {
  * 渲染 Mermaid。优先 beautiful-mermaid，不支持或报错时回退 mermaid.js。
  * 返回 { svg, renderer, note }
  */
-export async function render(code, themeName) {
+export async function render(code, themeName, layout) {
   const theme = THEMES[themeName] || THEMES[DEFAULT_THEME]
   let bmError = null
-  if (isChatGPTTheme(themeName)) {
+  // 布局与配色独立：layout 不填 / auto 跟随配色（chatgpt → elk）；ELK 只对 flowchart / graph 生效（与 API 同一套判断）
+  if (resolveLayout(themeName, layout) === 'elk') {
     const cg = await loadChatGPT()
     if (cg.isFlowchart(code)) {
       try {
-        return { svg: await cg.renderChatGPTFlowchart(code), renderer: 'chatgpt-elk' }
+        return { svg: await cg.renderChatGPTFlowchart(code, elkPalette(themeName)), renderer: 'chatgpt-elk' }
       } catch (e) {
         bmError = e // 失败时退回原渲染器
       }
@@ -148,7 +149,7 @@ export async function render(code, themeName) {
   }
   if (isBMSupported(code)) {
     try {
-      return { svg: normalizeSvg(renderBM(code, themeName), theme.bg), renderer: 'beautiful-mermaid', note: bmError ? `ChatGPT 风布局失败，已改用 beautiful-mermaid：${bmError.message}` : null }
+      return { svg: normalizeSvg(renderBM(code, themeName), theme.bg), renderer: 'beautiful-mermaid', note: bmError ? `ELK 布局失败，已改用 beautiful-mermaid：${bmError.message}` : null }
     } catch (e) {
       bmError = e
     }

@@ -2,17 +2,17 @@ import './style.css'
 import { render, validate, THEMES, DEFAULT_THEME } from './render.js'
 import { EXAMPLES } from './examples.js'
 import { pngSize, svgSize, svgToPngBlob, copyPng, copyText, download, cleanSvg, buildHtmlWidget, HTML_WIDGET_LIMIT, PNG_MAX_SIDE, PNG_HARD_MAX_SIDE } from './export.js'
-import { THEME_LABELS, firstLine } from './shared/core.js'
+import { THEME_LABELS, LAYOUTS, LAYOUT_LABELS, themeDefaultLayout, parseLayout, firstLine } from './shared/core.js'
 
 const $ = (id) => document.getElementById(id)
 const els = {
   source: $('source'), stage: $('stage'), error: $('error'), renderer: $('renderer'), size: $('size'),
-  theme: $('theme'), scale: $('scale'), wideHint: $('wide-hint'), example: $('example'), toast: $('toast'),
+  theme: $('theme'), layout: $('layout'), scale: $('scale'), wideHint: $('wide-hint'), example: $('example'), toast: $('toast'),
   copyPng: $('copy-png'), downloadPng: $('download-png'), copySvg: $('copy-svg'), copySrc: $('copy-src'), copyHtml: $('copy-html'),
 }
-const LS = { src: 'mf.source', theme: 'mf.theme', scale: 'mf.scale' }
+const LS = { src: 'mf.source', theme: 'mf.theme', layout: 'mf.layout', scale: 'mf.scale' }
 
-const state = { svg: '', renderer: '', theme: DEFAULT_THEME, scale: 2, ok: false }
+const state = { svg: '', renderer: '', theme: DEFAULT_THEME, layout: 'auto', scale: 2, ok: false }
 
 function store(k, v) { try { localStorage.setItem(k, v) } catch {} }
 function load(k) { try { return localStorage.getItem(k) } catch { return null } }
@@ -29,11 +29,20 @@ for (const name of Object.keys(THEME_LABELS)) {
   if (!THEMES[name]) continue
   els.theme.add(new Option(THEME_LABELS[name], name))
 }
+// 布局：「跟随配色」（auto，默认）= ChatGPT 配色用 ELK、其他用默认布局；手动选了 default / elk 就固定不变
+els.layout.add(new Option('', 'auto'))
+for (const id of LAYOUTS) els.layout.add(new Option(LAYOUT_LABELS[id], id))
+function syncLayoutLabel() {
+  els.layout.options[0].text = `跟随配色（${LAYOUT_LABELS[themeDefaultLayout(state.theme)]}）`
+}
 for (const ex of EXAMPLES) els.example.add(new Option(ex.name, ex.id))
 
 state.theme = THEMES[load(LS.theme)] ? load(LS.theme) : DEFAULT_THEME
 state.scale = load(LS.scale) === '3' ? 3 : 2
+state.layout = parseLayout(load(LS.layout)) || 'auto'
 els.theme.value = state.theme
+els.layout.value = state.layout
+syncLayoutLabel()
 els.scale.value = String(state.scale)
 els.source.value = load(LS.src) ?? EXAMPLES[0].code
 
@@ -52,7 +61,7 @@ async function update() {
     return
   }
   try {
-    const res = await render(code, state.theme)
+    const res = await render(code, state.theme, state.layout)
     if (my !== renderSeq) return
     state.svg = res.svg
     state.flat = null
@@ -131,7 +140,8 @@ els.source.addEventListener('keydown', (e) => {
     clearTimeout(timer); timer = setTimeout(update, 300)
   }
 })
-els.theme.addEventListener('change', () => { state.theme = els.theme.value; store(LS.theme, state.theme); update() })
+els.theme.addEventListener('change', () => { state.theme = els.theme.value; store(LS.theme, state.theme); syncLayoutLabel(); update() })
+els.layout.addEventListener('change', () => { state.layout = els.layout.value; store(LS.layout, state.layout); update() })
 els.scale.addEventListener('change', () => { state.scale = Number(els.scale.value); store(LS.scale, String(state.scale)); updateSize() })
 els.example.addEventListener('change', () => {
   const ex = EXAMPLES.find((e) => e.id === els.example.value)
