@@ -33,7 +33,7 @@ for (const name of Object.keys(THEME_LABELS)) {
 els.layout.add(new Option('', 'auto'))
 for (const id of LAYOUTS) els.layout.add(new Option(LAYOUT_LABELS[id], id))
 function syncLayoutLabel() {
-  els.layout.options[0].text = `跟随配色（${LAYOUT_LABELS[themeDefaultLayout(state.theme)]}）`
+  els.layout.options[0].text = `跟随配色（${themeDefaultLayout(state.theme) === 'elk' ? 'ELK' : '默认'}）`
 }
 for (const ex of EXAMPLES) els.example.add(new Option(ex.name, ex.id))
 
