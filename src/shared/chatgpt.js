@@ -204,8 +204,8 @@ export async function renderChatGPTFlowchart(code, palette = null) {
     parts.push(`<g class="cg-group" data-id="${esc(b.id)}"><rect x="${n2(b.x)}" y="${n2(b.y)}" width="${n2(b.w)}" height="${n2(b.h)}" rx="${CG.radius}" ry="${CG.radius}" fill="${P.group}" stroke="${P.groupStroke}" stroke-width="1"/>${lab}</g>`)
   }
 
-  // 连线
-  const edgeParts = [], chipParts = []
+  // 连线（箭头尖端单独收集，画在节点之后，避免被填充盖住）
+  const edgeParts = [], chipParts = [], arrowParts = []
   for (const [i, e] of (out.edges || []).entries()) {
     const src = g.edges[i]
     const s = e.sections?.[0]
@@ -214,14 +214,20 @@ export async function renderChatGPTFlowchart(code, palette = null) {
     let pts = [s.startPoint, ...(s.bendPoints || []), s.endPoint].map((p) => [p.x + ox, p.y + oy])
     pts = pts.filter((p, k) => k === 0 || Math.abs(p[0] - pts[k - 1][0]) > 1e-6 || Math.abs(p[1] - pts[k - 1][1]) > 1e-6)
     if (pts.length < 2) continue
+    // 先清折线，再把端点贴回节点边框，最后画箭头（尖端落在边框上）
+    pts = simplifyOrtho(pts)
+    if (pts.length < 2) continue
+    const boxOf = (id) => boxes.get(id) || boxes.get('g:' + id)
+    if (boxOf(src.target)) pts[pts.length - 1] = snapToBox(pts[pts.length - 1], boxOf(src.target), pts[pts.length - 2])
+    if (boxOf(src.source)) pts[0] = snapToBox(pts[0], boxOf(src.source), pts[1])
     const tips = []
     if (src.hasArrowEnd) { const r = pull(pts, pts.length - 1, pts.length - 2); pts = r.pts; tips.push(r.tip) }
     if (src.hasArrowStart) { const r = pull(pts, 0, 1); pts = r.pts; tips.push(r.tip) }
     for (const p of pts) grow(p[0], p[1])
     const dash = src.style === 'dotted' ? ' stroke-dasharray="3 3"' : ''
     const sw = src.style === 'thick' ? 2 : 1
-    edgeParts.push(`<path class="cg-edge" data-from="${esc(src.source)}" data-to="${esc(src.target)}" d="${roundedPath(simplifyOrtho(pts), CG.corner)}" fill="none" stroke="${P.line}" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round"${dash}/>` +
-      tips.map((t) => `<path d="${t}" fill="none" stroke="${P.arrow}" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>`).join(''))
+    edgeParts.push(`<path class="cg-edge" data-from="${esc(src.source)}" data-to="${esc(src.target)}" d="${roundedPath(pts, CG.corner)}" fill="none" stroke="${P.line}" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="butt"${dash}/>`)
+    for (const t of tips) if (t) arrowParts.push(`<path d="${t}" fill="none" stroke="${P.arrow}" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>`)
     const lab = e.labels?.[0]
     if (src.label && lab) {
       const x = lab.x + ox, y = lab.y + oy
@@ -249,23 +255,42 @@ export async function renderChatGPTFlowchart(code, palette = null) {
   const width = Math.ceil(maxX - minX + 2 * M), height = Math.ceil(maxY - minY + 2 * M)
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" style="background-color:${P.bg}" font-family="${esc(CG.font)}" data-renderer="chatgpt-elk">` +
     `<g transform="translate(${n2(tx)} ${n2(ty)})">` +
-    `<g class="cg-groups">${parts.join('')}</g><g class="cg-edges">${edgeParts.join('')}</g><g class="cg-labels">${chipParts.join('')}</g><g class="cg-nodes">${nodeParts.join('')}</g>` +
+    `<g class="cg-groups">${parts.join('')}</g><g class="cg-edges">${edgeParts.join('')}</g><g class="cg-labels">${chipParts.join('')}</g><g class="cg-nodes">${nodeParts.join('')}</g><g class="cg-arrows">${arrowParts.join('')}</g>` +
     `</g></svg>`
 }
 
-/** 箭头端回缩 8px，返回新折线和开口箭头路径（尖端在原端点前 4px） */
+/** 把端点吸附到节点矩形边框（ELK 口位 / 折线清理后可能略有偏移） */
+function snapToBox(pt, box, fromPt) {
+  const cx = box.x + box.w / 2, cy = box.y + box.h / 2
+  const [fx, fy] = fromPt
+  // 从边外靠近：根据来向选边
+  if (Math.abs(fx - cx) * box.h >= Math.abs(fy - cy) * box.w) {
+    const x = fx >= cx ? box.x + box.w : box.x
+    const y = Math.max(box.y, Math.min(box.y + box.h, pt[1]))
+    return [x, y]
+  }
+  const y = fy >= cy ? box.y + box.h : box.y
+  const x = Math.max(box.x, Math.min(box.x + box.w, pt[0]))
+  return [x, y]
+}
+
+/**
+ * 开口箭头：尖端落在节点边框上（再沿边框法向微探 0.5px，贴上 1px stroke / 虚线框），
+ * 折线端点回退到箭头根部，避免线头盖住尖或留出空隙。
+ */
 function pull(pts, end, prev) {
   pts = pts.map((p) => p.slice())
   const [ex, ey] = pts[end], [px, py] = pts[prev]
   const dx = px - ex, dy = py - ey, l = Math.hypot(dx, dy)
   if (!l) return { pts, tip: '' }
-  const ux = dx / l, uy = dy / l
-  const back = Math.min(CG.pullback, Math.max(0, l / 2 - 4))
-  pts[end] = [ex + ux * back, ey + uy * back]
-  const tx = pts[end][0] - ux * 4, ty = pts[end][1] - uy * 4 // 尖端
-  const a = 4.5 / Math.SQRT2
-  // 两翼：沿反方向退 a，再向两侧偏 a
-  const bx = tx + ux * a, by = ty + uy * a
+  const ux = dx / l, uy = dy / l // 沿边离开节点（边外 → 远离框）
+  // 尖端贴在描边外侧（框边 + 0.5px stroke/2），节点后绘制时仍可见并顶住虚线/实线框
+  const tx = ex + ux * 0.5, ty = ey + uy * 0.5
+  const arrowLen = 6 // 尖端 → 折线端（箭头深度）
+  const back = Math.min(Math.max(arrowLen, 6), Math.max(0, l / 2 - 1))
+  pts[end] = [tx + ux * back, ty + uy * back]
+  const a = 4.2 / Math.SQRT2
+  const bx = tx + ux * 4, by = ty + uy * 4
   const w1 = [bx - uy * a, by + ux * a], w2 = [bx + uy * a, by - ux * a]
   const tip = `M ${n2(pts[end][0])} ${n2(pts[end][1])} L ${n2(tx)} ${n2(ty)} M ${n2(w1[0])} ${n2(w1[1])} L ${n2(tx)} ${n2(ty)} L ${n2(w2[0])} ${n2(w2[1])}`
   return { pts, tip }
