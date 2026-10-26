@@ -118,7 +118,7 @@ export const EXAMPLES = [
     B --> C
     C --> F[修复、回归验证并记录结果]
     F --> R`,
-  },,
+  },
   {
     id: 'qa-loop',
     name: '测试验收闭环（ELK 折线）',

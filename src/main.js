@@ -60,12 +60,12 @@ for (const name of Object.keys(THEME_LABELS)) {
   els.theme.add(new Option(THEME_LABELS[name], name))
 }
 // 布局：「跟随配色」（auto，默认）= ChatGPT 配色用 ELK、其他用默认布局；手动选了 default / elk 就固定不变
-els.layout.add(new Option('', 'auto'))
+els.layout.add(new Option('跟随配色', 'auto'))
 for (const id of LAYOUTS) els.layout.add(new Option(LAYOUT_LABELS[id], id))
 function syncLayoutLabel() {
   els.layout.options[0].text = `跟随配色（${themeDefaultLayout(state.theme) === 'elk' ? 'ELK' : '默认'}）`
 }
-for (const ex of EXAMPLES) els.example.add(new Option(ex.name, ex.id))
+for (const ex of EXAMPLES) { if (!ex?.id) continue; els.example.add(new Option(ex.name, ex.id)) }
 
 state.theme = THEMES[load(LS.theme)] ? load(LS.theme) : DEFAULT_THEME
 state.scale = load(LS.scale) === '3' ? 3 : 2
@@ -90,7 +90,8 @@ applyCompareChrome()
 const q = new URLSearchParams(location.search)
 const qEx = q.get('example')
 if (qEx) { const ex = EXAMPLES.find((e) => e.id === qEx); if (ex) els.source.value = ex.code }
-if (q.get('compare') === '1') { state.compare = true; els.compare.checked = true }
+if (q.get('compare') === '1') { state.compare = true; els.compare.checked = true; store(LS.compare, '1') }
+else if (q.get('compare') === '0') { state.compare = false; els.compare.checked = false; store(LS.compare, '0') }
 const qOrient = (q.get('compareOrient') || '').toLowerCase()
 if (qOrient === 'row' || qOrient === 'col') { state.compareOrient = qOrient; store(LS.compareOrient, qOrient) }
 applyCompareChrome()
