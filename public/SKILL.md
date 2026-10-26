@@ -31,29 +31,30 @@ CORS：`Access-Control-Allow-Origin: *`。无需鉴权。
 | --- | --- | --- | --- |
 | `code` | string | 是 | Mermaid 源码（可带 ```` ```mermaid ```` 围栏，会自动去掉）。UTF-8 不超过 **50KB** |
 | `format` | `"svg"` \| `"html"` | 否 | 默认 `svg`。`png` 会返回 501 |
-| `theme` | string | 否 | 配色，默认 `feishu-light`，见下方主题列表 |
+| `theme` | string | 否 | 配色，默认 `chatgpt`（ChatGPT 风），见下方主题列表 |
+| `direction` | `"tb"` \| `"lr"` \| `"bt"` \| `"rl"` \| `"auto"` | 否 | 流程图走向。不填或 `auto` = 不改写源码；`tb`（`td` 同义）/ `lr` / `bt` / `rl` = 把源码里第一个 `flowchart`/`graph` 头行的方向改成对应值后再渲染。非流程图忽略。非法值返回 400 `bad_direction`。`?json=1` 且发生改写时响应里带改写后的 `code` |
 | `layout` | `"default"` \| `"elk"` \| `"auto"` | 否 | 布局，与配色独立。不填或 `auto` = 跟随主题（`chatgpt` → `elk`，其他 → `default`）。`elk` = ELK 分层布局（ChatGPT 式排版，正交连线、节点间距统一、连线交叉更少）；`default` = beautiful-mermaid 原布局。**只对 flowchart / graph 生效**，其他图类型只换配色。非法值返回 400 `bad_layout` |
 
 也可以直接用纯文本 body 发送源码（`Content-Type: text/plain`），`format` / `theme` / `layout` 走查询参数。
 
-查询参数 `?json=1`：返回 JSON 包装 `{ ok, format, renderer, theme, layout, width, height, bytes, data }`，`data` 为 SVG 或 HTML 字符串。
+查询参数 `?json=1`：返回 JSON 包装 `{ ok, format, renderer, theme, layout, direction?, code?, width, height, bytes, data }`，`data` 为 SVG 或 HTML 字符串。
 
 默认返回原始内容：
 
 - `format=svg` → `Content-Type: image/svg+xml; charset=utf-8`
 - `format=html` → `Content-Type: text/html; charset=utf-8`
 
-响应头还带 `X-Renderer`（`beautiful-mermaid`；流程图走 ELK 布局时为 `chatgpt-elk`）、`X-Theme`、`X-Layout`（实际生效的布局：`default` / `elk`；非流程图恒为 `default`）、`X-Width`、`X-Height`（CSS 像素）。
+响应头还带 `X-Renderer`（`beautiful-mermaid`；流程图走 ELK 布局时为 `chatgpt-elk`）、`X-Theme`、`X-Layout`（实际生效的布局：`default` / `elk`；非流程图恒为 `default`）、`X-Direction`（流程图当前走向）、`X-Direction-Rewritten: 1`（本次因 `direction` 改写了源码时）、`X-Width`、`X-Height`（CSS 像素）。
 
 配色 × 布局可任意组合，例如 `theme=feishu-light&layout=elk`（飞书白配色 + ELK 布局），或 `theme=chatgpt&layout=default`（ChatGPT 配色 + 原布局）。
 
-### `GET /api/render?code=...&format=...&theme=...&layout=...`
+### `GET /api/render?code=...&format=...&theme=...&layout=...&direction=...`
 
 同上，适合短源码（记得 URL 编码，例如 `encodeURIComponent`）。也支持 `&json=1`。
 
 ### `GET /api/themes`
 
-返回 `{ ok, default, layouts: ["auto", "default", "elk"], themes: [{ id, name, background, dark, defaultLayout }] }`（`defaultLayout` = 不传 `layout` 时该主题用的布局）。
+返回 `{ ok, default, defaultLayout, layouts, directions, themes: [{ id, name, background, dark, defaultLayout }] }`。`default` 现为 `chatgpt`；`defaultLayout` 为 `elk`（省略 theme 时等同 chatgpt + elk）。
 
 ### `GET /api/health`
 
@@ -63,11 +64,11 @@ CORS：`Access-Control-Allow-Origin: *`。无需鉴权。
 
 | id | 名称 | 背景 | 说明 |
 | --- | --- | --- | --- |
-| `feishu-light` | 飞书白（**默认**） | `#FFFFFF` | 白底、细线、低饱和，最适合飞书正文 |
+| `feishu-light` | 飞书白 | `#FFFFFF` | 白底、细线、低饱和，适合飞书正文 |
 | `feishu-gray` | 飞书浅灰 | `#F5F6F7` | 浅灰底、细线、低饱和 |
 | `soft-sage` | 淡雅灰绿 | `#FFFFFF` | 白底、灰绿点缀 |
 | `feishu-blue` | 飞书画板蓝 | `#FFFFFF` | 仿飞书画板流程图：统一浅蓝圆角块 `#DCE9F7`（无明显边框）、蓝色文字；判断节点画成白底蓝色虚线圆角框（不是菱形）；细灰正交连线 + 圆角拐弯 + 小开口箭头；「是/否」为白底蓝边胶囊。单色，不分支着色 |
-| `chatgpt` | ChatGPT 风 | `#FFFFFF` | 仿 ChatGPT 对话里的 Mermaid 预览。**流程图 / graph** 默认用 ELK 分层布局（与 ChatGPT 相同的排版与正交连线走向；可用 `layout=default` 换回原布局）：浅蓝圆角块 `#E5F3FF`、深蓝文字 `#004F99`、判断节点画成虚线圆角框（不是菱形）、5px 圆角拐弯的细灰连线 + 开口箭头、「是/否」胶囊标签。网页和 API 输出相同（`X-Renderer: chatgpt-elk`）。其他图类型照常渲染，只换浅蓝配色 |
+| `chatgpt` | ChatGPT 风（**默认**） | `#FFFFFF` | 仿 ChatGPT 对话里的 Mermaid 预览。**流程图 / graph** 默认用 ELK 分层布局（与 ChatGPT 相同的排版与正交连线走向；可用 `layout=default` 换回原布局）：浅蓝圆角块 `#E5F3FF`、深蓝文字 `#004F99`、判断节点画成虚线圆角框（不是菱形）、5px 圆角拐弯的细灰连线 + 开口箭头、「是/否」胶囊标签。网页和 API 输出相同（`X-Renderer: chatgpt-elk`）。其他图类型照常渲染，只换浅蓝配色 |
 | `notion-blocks` | Notion 色块 | `#F7F6F3` | 暖米白底；节点按分支 / 分组 / 角色填充 Notion 风浅色块（蓝/绿/橙/紫/粉/棕/灰，判断节点为浅琥珀） |
 | `latte-blocks` | Catppuccin Latte 色块 | `#EFF1F5` | Catppuccin Latte 底色 + mauve/blue/green/peach/pink/teal/lavender 浅色块 |
 | `rose-pine-dawn` | Rosé Pine Dawn 色块 | `#FAF4ED` | 暖纸色底 + pine/iris/rose/foam/love 浅色块 |
@@ -241,7 +242,7 @@ body{font-family:-apple-system, ... sans-serif;}
 { "ok": false, "code": "too_large", "error": "源码超过 50KB 上限 / Source exceeds 50KB limit", "bytes": 86682 }
 ```
 
-`400` 其他错误（`code` 为 `empty` / `bad_json` / `bad_format` / `bad_theme` / `bad_layout` / `syntax_error`）：
+`400` 其他错误（`code` 为 `empty` / `bad_json` / `bad_format` / `bad_theme` / `bad_layout` / `bad_direction` / `syntax_error`）：
 
 ```json
 { "ok": false, "code": "bad_theme", "error": "未知主题 foo / Unknown theme", "themes": ["feishu-light", "feishu-gray", "..."] }

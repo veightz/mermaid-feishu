@@ -7,6 +7,7 @@ import {
   SITE_URL, MAX_SOURCE_BYTES, DEFAULT_THEME, THEMES, BM_TYPES,
   themeList, isBMSupported, diagramType, renderBM, cleanSvg, buildHtmlWidget, svgDims, byteLength,
   LAYOUTS, parseLayout, resolveLayout, elkPalette,
+  parseDirection, applyDirection,
 } from '../../src/shared/core.js'
 import { isFlowchart, renderChatGPTFlowchart } from '../../src/shared/chatgpt.js'
 
@@ -28,7 +29,10 @@ const fail = (status, code, error, more = {}) => json(status, { ok: false, code,
 
 async function readInput(request, url) {
   const q = url.searchParams
-  let input = { code: q.get('code'), format: q.get('format'), theme: q.get('theme'), layout: q.get('layout') ?? undefined }
+  let input = {
+    code: q.get('code'), format: q.get('format'), theme: q.get('theme'),
+    layout: q.get('layout') ?? undefined, direction: q.get('direction') ?? undefined,
+  }
   if (request.method === 'POST') {
     const len = Number(request.headers.get('content-length') || 0)
     if (len > MAX_SOURCE_BYTES * 4) return { tooLarge: true }
@@ -38,7 +42,11 @@ async function readInput(request, url) {
     if (ct.includes('application/json') || /^\s*\{/.test(text)) {
       let body
       try { body = JSON.parse(text) } catch { return { badJson: true } }
-      input = { code: body.code ?? input.code, format: body.format ?? input.format, theme: body.theme ?? input.theme, layout: body.layout ?? input.layout }
+      input = {
+        code: body.code ?? input.code, format: body.format ?? input.format,
+        theme: body.theme ?? input.theme, layout: body.layout ?? input.layout,
+        direction: body.direction ?? input.direction,
+      }
     } else {
       input.code = text // 纯文本 body 直接当 Mermaid 源码
     }
@@ -50,7 +58,7 @@ async function handleRender(request, url) {
   const { input, tooLarge, badJson } = await readInput(request, url)
   if (tooLarge) return fail(413, 'too_large', `输入超过 ${MAX_SOURCE_BYTES / 1024}KB 上限 / Source exceeds ${MAX_SOURCE_BYTES / 1024}KB limit`)
   if (badJson) return fail(400, 'bad_json', '请求体不是合法 JSON / Request body is not valid JSON')
-  const code = typeof input.code === 'string' ? input.code.replace(/^\s*```(?:mermaid)?\s*\n([\s\S]*?)\n?```\s*$/, '$1') : ''
+  let code = typeof input.code === 'string' ? input.code.replace(/^\s*```(?:mermaid)?\s*\n([\s\S]*?)\n?```\s*$/, '$1') : ''
   const format = String(input.format || 'svg').toLowerCase()
   const theme = input.theme || DEFAULT_THEME
   const asJson = ['1', 'true'].includes(url.searchParams.get('json') || '')
@@ -62,6 +70,10 @@ async function handleRender(request, url) {
   if (!THEMES[theme]) return fail(400, 'bad_theme', `未知主题 ${theme} / Unknown theme`, { themes: themeList().map((t) => t.id) })
 
   if (parseLayout(input.layout) === false) return fail(400, 'bad_layout', `layout 只能是 default、elk 或 auto（不填 = 跟随主题）/ layout must be "default", "elk" or "auto"`, { layouts: ['auto', ...LAYOUTS] })
+  if (parseDirection(input.direction) === false) return fail(400, 'bad_direction', `direction 只能是 tb、lr、bt、rl 或 auto（不填 = 不改写源码）/ direction must be "tb", "lr", "bt", "rl" or "auto"`, { directions: ['auto', 'tb', 'lr', 'bt', 'rl'] })
+  // direction：在布局前改写 flowchart/graph 头行的走向（LR↔TB 等）；非流程图忽略
+  const dirApplied = applyDirection(code, input.direction)
+  code = dirApplied.code
   // 布局与配色独立：不填 / auto 时跟随主题（chatgpt → elk，其他 → default）；ELK 只对 flowchart / graph 生效
   const layout = resolveLayout(theme, input.layout)
   const useCG = layout === 'elk' && isFlowchart(code)
@@ -85,8 +97,23 @@ async function handleRender(request, url) {
   const { width, height } = svgDims(svg)
   const data = format === 'html' ? buildHtmlWidget(svg, THEMES[theme].bg) : svg
   const usedLayout = renderer === 'chatgpt-elk' ? 'elk' : 'default'
-  const meta = { 'X-Renderer': renderer, 'X-Theme': theme, 'X-Layout': usedLayout, 'X-Width': String(width), 'X-Height': String(height), ...(cgError ? { 'X-Fallback-Reason': encodeURIComponent(cgError) } : {}) }
-  if (asJson) return json(200, { ok: true, format, renderer, theme, layout: usedLayout, width, height, bytes: byteLength(data), ...(cgError ? { note: `ELK 布局失败，已改用 beautiful-mermaid：${cgError}` } : {}), data }, meta)
+  const meta = {
+    'X-Renderer': renderer, 'X-Theme': theme, 'X-Layout': usedLayout,
+    ...(dirApplied.direction ? { 'X-Direction': dirApplied.direction } : {}),
+    ...(dirApplied.rewritten ? { 'X-Direction-Rewritten': '1' } : {}),
+    'X-Width': String(width), 'X-Height': String(height),
+    ...(cgError ? { 'X-Fallback-Reason': encodeURIComponent(cgError) } : {}),
+  }
+  if (asJson) {
+    return json(200, {
+      ok: true, format, renderer, theme, layout: usedLayout,
+      ...(dirApplied.direction ? { direction: dirApplied.direction } : {}),
+      ...(dirApplied.rewritten ? { code: dirApplied.code } : {}),
+      width, height, bytes: byteLength(data),
+      ...(cgError ? { note: `ELK 布局失败，已改用 beautiful-mermaid：${cgError}` } : {}),
+      data,
+    }, meta)
+  }
   return new Response(data, {
     status: 200,
     headers: {
@@ -105,7 +132,11 @@ export async function onRequest({ request }) {
     if (path === '/api/health') return json(200, { ok: true, service: 'mermaid-feishu', version: VERSION, renderer: 'beautiful-mermaid + chatgpt-elk', time: new Date().toISOString() })
     if (path === '/api/themes') {
       if (request.method !== 'GET') return fail(405, 'method_not_allowed', '只支持 GET / GET only')
-      return json(200, { ok: true, default: DEFAULT_THEME, layouts: ['auto', ...LAYOUTS], themes: themeList() })
+      return json(200, {
+        ok: true, default: DEFAULT_THEME, defaultLayout: 'elk',
+        layouts: ['auto', ...LAYOUTS], directions: ['auto', 'tb', 'lr', 'bt', 'rl'],
+        themes: themeList(),
+      })
     }
     if (path === '/api/render') {
       if (!['GET', 'POST'].includes(request.method)) return fail(405, 'method_not_allowed', '只支持 GET / POST')

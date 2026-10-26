@@ -9,9 +9,9 @@
 
 ## API
 
-- [POST /api/render](https://mermaid-feishu.pages.dev/api/render): JSON `{ code, format: "svg"|"html", theme?, layout?: "default"|"elk"|"auto" }` → `image/svg+xml` 或 `text/html`；`?json=1` 返回 JSON 包装；源码上限 50KB
-- [GET /api/render?code=&format=&theme=&layout=](https://mermaid-feishu.pages.dev/api/render): 短源码用 GET
-- [GET /api/themes](https://mermaid-feishu.pages.dev/api/themes): 主题列表（默认 feishu-light）；`theme=chatgpt` = ChatGPT 风（流程图默认 ELK 分层布局，网页与 API 输出一致）；`layout`（配色之外的独立开关）：不填/`auto` 跟随主题，`elk` 任意配色都用 ELK 布局，`default` 用原布局；只影响 flowchart/graph
+- [POST /api/render](https://mermaid-feishu.pages.dev/api/render): JSON `{ code, format: "svg"|"html", theme?, layout?: "default"|"elk"|"auto", direction?: "tb"|"lr"|"bt"|"rl"|"auto" }` → `image/svg+xml` 或 `text/html`；`?json=1` 返回 JSON 包装；源码上限 50KB
+- [GET /api/render?code=&format=&theme=&layout=&direction=](https://mermaid-feishu.pages.dev/api/render): 短源码用 GET
+- [GET /api/themes](https://mermaid-feishu.pages.dev/api/themes): 主题列表（默认 feishu-light）；默认主题 `chatgpt`（配 ELK）；`layout`：不填/`auto` 跟随主题（chatgpt→elk），`elk`/`default` 可强制；`direction`：`tb`/`lr`/`bt`/`rl` 在渲染前改写 flowchart/graph 走向，不填不改；只影响 flowchart/graph
 - [GET /api/health](https://mermaid-feishu.pages.dev/api/health): 健康检查
 
 ## Supported (API)

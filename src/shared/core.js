@@ -88,11 +88,11 @@ export const CHATGPT_THEMES = {
 }
 export const isChatGPTTheme = (id) => !!(THEMES[id] && THEMES[id].chatgpt)
 
-export const DEFAULT_THEME = 'feishu-light'
+export const DEFAULT_THEME = 'chatgpt'
 export const THEMES = { ...CUSTOM_THEMES, ...BOARD_THEMES, ...CHATGPT_THEMES, ...BLOCK_THEMES, ...BM_THEMES }
 export const THEME_LABELS = {
-  'feishu-light': '飞书白（默认）', 'feishu-gray': '飞书浅灰', 'soft-sage': '淡雅灰绿',
-  'feishu-blue': '飞书画板蓝', chatgpt: 'ChatGPT 风', 'notion-blocks': 'Notion 色块', 'latte-blocks': 'Catppuccin Latte 色块', 'rose-pine-dawn': 'Rosé Pine Dawn 色块', 'nord-snow': 'Nord 雪原色块', 'solarized-paper': 'Solarized 纸色块',
+  'feishu-light': '飞书白', 'feishu-gray': '飞书浅灰', 'soft-sage': '淡雅灰绿',
+  'feishu-blue': '飞书画板蓝', chatgpt: 'ChatGPT 风（默认）', 'notion-blocks': 'Notion 色块', 'latte-blocks': 'Catppuccin Latte 色块', 'rose-pine-dawn': 'Rosé Pine Dawn 色块', 'nord-snow': 'Nord 雪原色块', 'solarized-paper': 'Solarized 纸色块',
   'zinc-light': '简洁浅色', 'github-light': 'GitHub 浅色', 'nord-light': 'Nord 浅色', 'tokyo-night-light': 'Tokyo Night 浅色',
   'catppuccin-latte': 'Catppuccin Latte', 'solarized-light': 'Solarized 浅色', 'zinc-dark': '简洁深色', 'github-dark': 'GitHub 深色',
   'tokyo-night': 'Tokyo Night', 'tokyo-night-storm': 'Tokyo Night Storm', 'catppuccin-mocha': 'Catppuccin Mocha', nord: 'Nord',
@@ -166,6 +166,86 @@ export function firstLine(code) {
 }
 export function diagramType(code) { return (firstLine(code).split(/[\s;]+/)[0] || '').trim() }
 export function isBMSupported(code) { return BM_HEADERS.test(firstLine(code)) }
+
+// ---------- 流程图走向（LR ↔ TB 等；网页与 API 共用） ----------
+export const FLOW_DIRECTIONS = ['TB', 'LR', 'BT', 'RL']
+/** 去掉开头的 YAML front-matter（--- ... ---），便于找 flowchart 头 */
+export function stripFrontMatter(code) {
+  return String(code).replace(/^\s*---\r?\n[\s\S]*?\r?\n---[ \t]*\r?\n/, '')
+}
+/**
+ * 定位首个 flowchart/graph 头行。
+ * 返回 { lineIndex, kind, dir, implied }；dir 缺省时按 Mermaid 默认视为 TB；非流程图返回 null。
+ */
+export function detectFlowHeader(code) {
+  const lines = String(code).split('\n')
+  let i = 0
+  if ((lines[0] || '').trim() === '---') {
+    i = 1
+    while (i < lines.length && lines[i].trim() !== '---') i++
+    if (i < lines.length) i++
+  }
+  for (; i < lines.length; i++) {
+    const l = lines[i].trim()
+    if (!l || l.startsWith('%%')) continue
+    const m = /^(flowchart|graph)(?:\s+(TB|TD|BT|LR|RL))?(?=\s|;|$)/i.exec(l)
+    if (!m) return null
+    const rawDir = (m[2] || 'TB').toUpperCase()
+    return { lineIndex: i, kind: m[1].toLowerCase(), dir: rawDir, implied: !m[2] }
+  }
+  return null
+}
+/** 规范化 direction 参数：auto/空 → null；tb/td/lr/bt/rl → 大写；非法 → false */
+export function parseDirection(v) {
+  if (v === undefined || v === null) return null
+  const s = String(v).trim().toLowerCase()
+  if (s === '' || s === 'auto') return null
+  const map = { tb: 'TB', td: 'TB', bt: 'BT', lr: 'LR', rl: 'RL' }
+  return map[s] || false
+}
+/** 水平？LR/RL */
+export const isHorizontalDir = (d) => { const x = String(d || 'TB').toUpperCase(); return x === 'LR' || x === 'RL' }
+/**
+ * 改写源码里第一个 flowchart/graph 的方向。成功返回新源码；非流程图返回 null。
+ * target: TB|TD|BT|LR|RL（TD 写成 TB）
+ */
+export function setFlowDirection(code, target) {
+  const dir = String(target).toUpperCase() === 'TD' ? 'TB' : String(target).toUpperCase()
+  if (!FLOW_DIRECTIONS.includes(dir)) return null
+  const info = detectFlowHeader(code)
+  if (!info) return null
+  const lines = String(code).split('\n')
+  const line = lines[info.lineIndex]
+  const next = line.replace(/^(\s*)(flowchart|graph)(?:\s+(TB|TD|BT|LR|RL))?(?=\s|;|$)/i, `$1$2 ${dir}`)
+  if (next === line && info.dir === dir) return code
+  lines[info.lineIndex] = next
+  return lines.join('\n')
+}
+/** 一键翻转：LR/RL → TB，TB/TD/BT → LR */
+export function flipFlowDirection(code) {
+  const info = detectFlowHeader(code)
+  if (!info) return null
+  const d = info.dir === 'TD' ? 'TB' : info.dir
+  return setFlowDirection(code, isHorizontalDir(d) ? 'TB' : 'LR')
+}
+/**
+ * 按 API/控件的 direction 参数改写源码。
+ * 返回 { ok, code, direction, rewritten }；ok=false 表示参数非法。
+ * 非流程图时忽略 direction（不改写、不报错）。
+ */
+export function applyDirection(code, directionParam) {
+  const d = parseDirection(directionParam)
+  if (d === false) return { ok: false }
+  const info = detectFlowHeader(code)
+  if (!info) return { ok: true, code, direction: null, rewritten: false }
+  if (d === null) {
+    const cur = info.dir === 'TD' ? 'TB' : info.dir
+    return { ok: true, code, direction: cur, rewritten: false }
+  }
+  const next = setFlowDirection(code, d)
+  return { ok: true, code: next ?? code, direction: d, rewritten: !!(next && next !== code) }
+}
+
 
 // ---------- beautiful-mermaid 渲染 ----------
 const FONT_TOKEN = '__MF_CJK__'

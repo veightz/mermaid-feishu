@@ -75,3 +75,9 @@ body.compare-row .compare-col:first-child { border-left: 0; }
 body.compare-col .compare-wrap { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
 body.compare-col .compare-col { border-left: 0; border-top: 1px solid var(--border); }
 body.compare-col .compare-col:first-child { border-top: 0; }
+
+.wide-hint button.hint-action {
+  font: inherit; font-size: 12px; margin-left: 8px; padding: 2px 8px;
+  border: 1px solid #b7c9ef; border-radius: 6px; background: #fff; color: #2b5cb8; cursor: pointer;
+}
+.wide-hint button.hint-action:hover { background: #e1eaff; }

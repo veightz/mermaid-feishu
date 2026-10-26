@@ -33,7 +33,21 @@ if (withLayouts) {
   const r2 = await call('/api/render?theme=feishu-light&layout=ELK&code=' + encodeURIComponent(SAMPLES.flow))
   if (r2.headers.get('x-layout') !== 'elk') { bad++; console.log('BAD GET layout=ELK', r2.status) } else console.log('ok  GET layout=ELK → elk')
   const r3 = await call('/api/themes'); const j3 = await r3.json()
-  if (!j3.layouts || j3.themes.find((t) => t.id === 'chatgpt').defaultLayout !== 'elk') { bad++; console.log('BAD themes', j3.layouts) } else console.log('ok  /api/themes layouts', j3.layouts.join(','))
+  if (!j3.layouts || j3.default !== 'chatgpt' || j3.defaultLayout !== 'elk' || j3.themes.find((t) => t.id === 'chatgpt').defaultLayout !== 'elk') {
+    bad++; console.log('BAD themes defaults', j3.default, j3.defaultLayout)
+  } else console.log('ok  /api/themes default=chatgpt layout=elk', j3.layouts.join(','))
+  // direction：改写 LR→TB；非法值 400；显式 theme 不被默认覆盖
+  const r4 = await call('/api/render?json=1', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 'flowchart LR\n  A --> B', direction: 'tb' }) })
+  const j4 = await r4.json()
+  if (r4.status !== 200 || j4.direction !== 'TB' || !j4.code?.includes('flowchart TB') || j4.theme !== 'chatgpt' || j4.layout !== 'elk') {
+    bad++; console.log('BAD direction tb', r4.status, j4)
+  } else console.log('ok  direction=tb rewrites + defaults chatgpt/elk')
+  const r5 = await call('/api/render', { method: 'POST', body: JSON.stringify({ code: SAMPLES.flow, direction: 'sideways' }) })
+  const j5 = await r5.json()
+  if (r5.status !== 400 || j5.code !== 'bad_direction') { bad++; console.log('BAD bad_direction', r5.status, j5) } else console.log('ok  invalid direction → 400 bad_direction')
+  const r6 = await call('/api/render?json=1', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: SAMPLES.flow, theme: 'feishu-light' }) })
+  const j6 = await r6.json()
+  if (j6.theme !== 'feishu-light' || j6.layout !== 'default') { bad++; console.log('BAD explicit theme', j6) } else console.log('ok  explicit theme=feishu-light keeps default layout')
 }
 console.log(`${n} renders, ${bad} failures → ${out}`)
 process.exit(bad ? 1 : 0)

@@ -2,12 +2,12 @@ import './style.css'
 import { render, validate, THEMES, DEFAULT_THEME } from './render.js'
 import { EXAMPLES } from './examples.js'
 import { pngSize, svgSize, svgToPngBlob, copyPng, copyText, download, cleanSvg, buildHtmlWidget, HTML_WIDGET_LIMIT, PNG_MAX_SIDE, PNG_HARD_MAX_SIDE } from './export.js'
-import { THEME_LABELS, LAYOUTS, LAYOUT_LABELS, themeDefaultLayout, parseLayout, firstLine } from './shared/core.js'
+import { THEME_LABELS, LAYOUTS, LAYOUT_LABELS, themeDefaultLayout, parseLayout, firstLine, detectFlowHeader, setFlowDirection, flipFlowDirection, isHorizontalDir } from './shared/core.js'
 
 const $ = (id) => document.getElementById(id)
 const els = {
   source: $('source'), stage: $('stage'), error: $('error'), renderer: $('renderer'), size: $('size'),
-  theme: $('theme'), layout: $('layout'), compare: $('compare'), compareOrient: $('compare-orient'), scale: $('scale'),
+  theme: $('theme'), layout: $('layout'), flowDir: $('flow-dir'), compare: $('compare'), compareOrient: $('compare-orient'), scale: $('scale'),
   wideHint: $('wide-hint'), example: $('example'), toast: $('toast'),
   stageSingle: $('stage-single'), compareWrap: $('compare-wrap'),
   stageDefault: $('stage-default'), stageElk: $('stage-elk'),
@@ -20,7 +20,7 @@ const LS = { src: 'mf.source', theme: 'mf.theme', layout: 'mf.layout', scale: 'm
 
 const SCALE_STEPS = [2, 3] // 与 #scale 选项一致
 const state = {
-  svg: '', renderer: '', theme: DEFAULT_THEME, layout: 'auto', scale: 2, ok: false, compare: false, compareOrient: 'row',
+  svg: '', renderer: '', theme: DEFAULT_THEME, layout: 'elk', scale: 2, ok: false, compare: false, compareOrient: 'row',
   // compare 两侧：{ svg, flat, renderer, note }
   panes: { default: null, elk: null },
 }
@@ -69,7 +69,7 @@ for (const ex of EXAMPLES) els.example.add(new Option(ex.name, ex.id))
 
 state.theme = THEMES[load(LS.theme)] ? load(LS.theme) : DEFAULT_THEME
 state.scale = load(LS.scale) === '3' ? 3 : 2
-state.layout = parseLayout(load(LS.layout)) || 'auto'
+state.layout = parseLayout(load(LS.layout)) || 'elk'
 state.compare = load(LS.compare) === '1'
 state.compareOrient = load(LS.compareOrient) === 'col' ? 'col' : 'row'
 els.theme.value = state.theme
@@ -163,7 +163,7 @@ async function update() {
   store(LS.src, code)
   if (!code.trim()) {
     clearStages()
-    els.error.hidden = true; els.wideHint.hidden = true; setOk(false)
+    els.error.hidden = true; els.wideHint.hidden = true; els.flowDir.hidden = true; setOk(false)
     return
   }
   try {
@@ -267,17 +267,56 @@ function updateSize() {
     if (state.panes.elk?.svg) els.sizeElk.textContent = sizeLabel(state.panes.elk.svg)
   }
 }
-/** 宽图提示：原始宽度 > 1200px 时显示；LR/RL 流程图建议改成 TB */
+/** 同步顶栏「左右 LR / 上下 TB」；非流程图时隐藏 */
+function syncFlowDir(code) {
+  const info = detectFlowHeader(code || els.source.value)
+  if (!info) {
+    els.flowDir.hidden = true
+    delete document.body.dataset.flowDir
+    return null
+  }
+  els.flowDir.hidden = false
+  const dir = info.dir === 'TD' ? 'TB' : info.dir
+  const horiz = isHorizontalDir(dir)
+  document.body.dataset.flowDir = dir
+  for (const btn of els.flowDir.querySelectorAll('.seg-btn')) {
+    const on = (btn.dataset.dir === 'LR' && horiz) || (btn.dataset.dir === 'TB' && !horiz)
+    btn.classList.toggle('active', on)
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false')
+  }
+  return info
+}
+
+/** 改写源码走向并重渲染；target 为 TB/LR，或 'flip' */
+function applyFlowDir(target) {
+  const code = els.source.value
+  const next = target === 'flip' ? flipFlowDirection(code) : setFlowDirection(code, target)
+  if (next == null) { toast('当前不是流程图，无法改走向'); return }
+  if (next === code) return
+  els.source.value = next
+  store(LS.src, next)
+  const d = detectFlowHeader(next)?.dir
+  toast(isHorizontalDir(d) ? '已改为左右 LR' : '已改为上下 TB')
+  update()
+}
+
+/** 宽图提示：原始宽度 > 1200px 时显示；LR/RL 可一键改成 TB */
 const WIDE_LIMIT = 1200
 function updateWideHint(code, svg) {
+  syncFlowDir(code)
   const { w } = svgSize(svg || state.svg)
   if (w <= WIDE_LIMIT) { els.wideHint.hidden = true; delete document.body.dataset.wide; return }
-  const m = /^(?:flowchart|graph)\s+(LR|RL)\b/i.exec(firstLine(code.replace(/^\s*---\r?\n[\s\S]*?\r?\n---[ \t]*\r?\n/, '')))
-  els.wideHint.textContent = m
-    ? `图较宽，贴进飞书后字会变小，可以把 \`${m[1].toUpperCase()}\` 改成 \`TB\``
-    : `图较宽（约 ${Math.round(w)}px），贴进飞书后字会变小，可以考虑拆成几张小图或减少同一行的节点`
+  const info = detectFlowHeader(code)
+  const horiz = info && isHorizontalDir(info.dir)
+  if (horiz) {
+    const cur = info.dir === 'TD' ? 'TB' : info.dir
+    els.wideHint.innerHTML = `图较宽，贴进飞书后字会变小，建议改成从上到下 <button type="button" class="hint-action" data-flow-dir="TB" title="把源码里的 ${cur} 改成 TB">改为上下 TB</button>`
+    document.body.dataset.wide = 'lr'
+  } else {
+    els.wideHint.textContent = `图较宽（约 ${Math.round(w)}px），贴进飞书后字会变小，可以考虑拆成几张小图或减少同一行的节点`
+    document.body.dataset.wide = 'generic'
+  }
   els.wideHint.hidden = false
-  document.body.dataset.wide = m ? 'lr' : 'generic'
 }
 
 let timer = null
@@ -292,6 +331,16 @@ els.source.addEventListener('keydown', (e) => {
   }
 })
 els.theme.addEventListener('change', () => { state.theme = els.theme.value; store(LS.theme, state.theme); syncLayoutLabel(); update() })
+els.flowDir.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-dir]')
+  if (!btn) return
+  applyFlowDir(btn.dataset.dir)
+})
+els.wideHint.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-flow-dir]')
+  if (!btn) return
+  applyFlowDir(btn.dataset.flowDir)
+})
 els.layout.addEventListener('change', () => { state.layout = els.layout.value; store(LS.layout, state.layout); update() })
 els.compare.addEventListener('change', () => {
   state.compare = els.compare.checked

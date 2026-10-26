@@ -19,6 +19,10 @@
       <label title="只影响流程图 / graph；其他图类型只换配色">布局
         <select id="layout"></select>
       </label>
+      <span class="seg" id="flow-dir" hidden title="改写源码里 flowchart/graph 的走向（LR↔TB）">
+        <button type="button" data-dir="LR" class="seg-btn" aria-pressed="false">左右 LR</button>
+        <button type="button" data-dir="TB" class="seg-btn" aria-pressed="false">上下 TB</button>
+      </span>
       <label class="check" title="同一配色下对比默认布局与 ELK 布局（只影响流程图）">
         <input type="checkbox" id="compare" /> 对比布局
       </label>
