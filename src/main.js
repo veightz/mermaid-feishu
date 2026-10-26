@@ -18,10 +18,30 @@ const els = {
 }
 const LS = { src: 'mf.source', theme: 'mf.theme', layout: 'mf.layout', scale: 'mf.scale', compare: 'mf.compare', compareOrient: 'mf.compareOrient' }
 
+const SCALE_STEPS = [2, 3] // 与 #scale 选项一致
 const state = {
   svg: '', renderer: '', theme: DEFAULT_THEME, layout: 'auto', scale: 2, ok: false, compare: false, compareOrient: 'row',
   // compare 两侧：{ svg, flat, renderer, note }
   panes: { default: null, elk: null },
+}
+// 对比开关时抬高一档倍率；关掉时若期间没手动改过倍率则还原
+let scaleBeforeCompare = null
+let scaleTouchedDuringCompare = false
+
+function applyScale(n, { persist = true } = {}) {
+  state.scale = SCALE_STEPS.includes(n) ? n : SCALE_STEPS[0]
+  els.scale.value = String(state.scale)
+  if (persist) store(LS.scale, String(state.scale))
+  updateSize()
+  if (state.compare) {
+    if (state.panes.default?.svg) els.sizeDefault.textContent = sizeLabel(state.panes.default.svg)
+    if (state.panes.elk?.svg) els.sizeElk.textContent = sizeLabel(state.panes.elk.svg)
+  }
+}
+function bumpScaleOne() {
+  const i = SCALE_STEPS.indexOf(state.scale)
+  const next = SCALE_STEPS[Math.min(SCALE_STEPS.length - 1, Math.max(0, i) + 1)]
+  if (next !== state.scale) applyScale(next)
 }
 
 function store(k, v) { try { localStorage.setItem(k, v) } catch {} }
@@ -276,6 +296,16 @@ els.layout.addEventListener('change', () => { state.layout = els.layout.value; s
 els.compare.addEventListener('change', () => {
   state.compare = els.compare.checked
   store(LS.compare, state.compare ? '1' : '0')
+  if (state.compare) {
+    scaleBeforeCompare = state.scale
+    scaleTouchedDuringCompare = false
+    bumpScaleOne() // 2x→3x；已是最高档则不动
+  } else if (scaleBeforeCompare != null && !scaleTouchedDuringCompare) {
+    applyScale(scaleBeforeCompare)
+    scaleBeforeCompare = null
+  } else {
+    scaleBeforeCompare = null
+  }
   applyCompareChrome()
   update()
 })
@@ -285,13 +315,8 @@ els.compareOrient.addEventListener('click', (e) => {
   setCompareOrient(btn.dataset.orient)
 })
 els.scale.addEventListener('change', () => {
-  state.scale = Number(els.scale.value)
-  store(LS.scale, String(state.scale))
-  updateSize()
-  if (state.compare) {
-    if (state.panes.default?.svg) els.sizeDefault.textContent = sizeLabel(state.panes.default.svg)
-    if (state.panes.elk?.svg) els.sizeElk.textContent = sizeLabel(state.panes.elk.svg)
-  }
+  if (state.compare) scaleTouchedDuringCompare = true
+  applyScale(Number(els.scale.value))
 })
 els.example.addEventListener('change', () => {
   const ex = EXAMPLES.find((e) => e.id === els.example.value)
