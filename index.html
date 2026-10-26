@@ -19,9 +19,13 @@
       <label title="只影响流程图 / graph；其他图类型只换配色">布局
         <select id="layout"></select>
       </label>
-      <label class="check" title="同一配色下并排对比默认布局与 ELK 布局（只影响流程图）">
+      <label class="check" title="同一配色下对比默认布局与 ELK 布局（只影响流程图）">
         <input type="checkbox" id="compare" /> 对比布局
       </label>
+      <span class="seg" id="compare-orient" hidden title="对比时的排列方向">
+        <button type="button" data-orient="row" class="seg-btn active" aria-pressed="true">左右</button>
+        <button type="button" data-orient="col" class="seg-btn" aria-pressed="false">上下</button>
+      </span>
       <label>倍率
         <select id="scale"><option value="2">2x</option><option value="3">3x</option></select>
       </label>
@@ -72,7 +76,7 @@
         </div>
       </div>
       <div class="foot" id="foot-single">预览宽度按飞书正文约 820px 显示；PNG = 图的原始尺寸 × 倍率（最长边不超过 4096px，超出会等比缩小；倍率保底 1x，最长边最多 8192px）。</div>
-      <div class="foot" id="foot-compare" hidden>对比模式：同一源码 + 同一配色，左侧默认布局、右侧 ELK。倍率对两侧相同；用各侧按钮复制对应 PNG / SVG。顶部「复制 PNG」等仍按右侧 ELK。</div>
+      <div class="foot" id="foot-compare" hidden>对比模式：同一源码 + 同一配色；默认布局与 ELK 可左右或上下排列（顶栏「左右 / 上下」切换）。倍率对两侧相同；用各侧按钮复制对应 PNG / SVG。顶部「复制 PNG」等仍按 ELK。</div>
     </section>
   </main>
   <div id="toast" class="toast" hidden></div>

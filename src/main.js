@@ -7,7 +7,7 @@ import { THEME_LABELS, LAYOUTS, LAYOUT_LABELS, themeDefaultLayout, parseLayout, 
 const $ = (id) => document.getElementById(id)
 const els = {
   source: $('source'), stage: $('stage'), error: $('error'), renderer: $('renderer'), size: $('size'),
-  theme: $('theme'), layout: $('layout'), compare: $('compare'), scale: $('scale'),
+  theme: $('theme'), layout: $('layout'), compare: $('compare'), compareOrient: $('compare-orient'), scale: $('scale'),
   wideHint: $('wide-hint'), example: $('example'), toast: $('toast'),
   stageSingle: $('stage-single'), compareWrap: $('compare-wrap'),
   stageDefault: $('stage-default'), stageElk: $('stage-elk'),
@@ -16,10 +16,10 @@ const els = {
   footSingle: $('foot-single'), footCompare: $('foot-compare'),
   copyPng: $('copy-png'), downloadPng: $('download-png'), copySvg: $('copy-svg'), copySrc: $('copy-src'), copyHtml: $('copy-html'),
 }
-const LS = { src: 'mf.source', theme: 'mf.theme', layout: 'mf.layout', scale: 'mf.scale', compare: 'mf.compare' }
+const LS = { src: 'mf.source', theme: 'mf.theme', layout: 'mf.layout', scale: 'mf.scale', compare: 'mf.compare', compareOrient: 'mf.compareOrient' }
 
 const state = {
-  svg: '', renderer: '', theme: DEFAULT_THEME, layout: 'auto', scale: 2, ok: false, compare: false,
+  svg: '', renderer: '', theme: DEFAULT_THEME, layout: 'auto', scale: 2, ok: false, compare: false, compareOrient: 'row',
   // compare 两侧：{ svg, flat, renderer, note }
   panes: { default: null, elk: null },
 }
@@ -51,6 +51,7 @@ state.theme = THEMES[load(LS.theme)] ? load(LS.theme) : DEFAULT_THEME
 state.scale = load(LS.scale) === '3' ? 3 : 2
 state.layout = parseLayout(load(LS.layout)) || 'auto'
 state.compare = load(LS.compare) === '1'
+state.compareOrient = load(LS.compareOrient) === 'col' ? 'col' : 'row'
 els.theme.value = state.theme
 els.layout.value = state.layout
 els.compare.checked = state.compare
@@ -59,22 +60,40 @@ els.scale.value = String(state.scale)
 els.source.value = load(LS.src) ?? EXAMPLES[0].code
 applyCompareChrome()
 
-// URL ?example=xxx 方便直接打开某个示例；?compare=1 打开对比
+// URL ?example=xxx；?compare=1；?compareOrient=row|col
 const q = new URLSearchParams(location.search)
 const qEx = q.get('example')
 if (qEx) { const ex = EXAMPLES.find((e) => e.id === qEx); if (ex) els.source.value = ex.code }
-if (q.get('compare') === '1') { state.compare = true; els.compare.checked = true; applyCompareChrome() }
+if (q.get('compare') === '1') { state.compare = true; els.compare.checked = true }
+const qOrient = (q.get('compareOrient') || '').toLowerCase()
+if (qOrient === 'row' || qOrient === 'col') { state.compareOrient = qOrient; store(LS.compareOrient, qOrient) }
+applyCompareChrome()
+
+function setCompareOrient(orient) {
+  state.compareOrient = orient === 'col' ? 'col' : 'row'
+  store(LS.compareOrient, state.compareOrient)
+  applyCompareChrome()
+}
 
 function applyCompareChrome() {
   document.body.classList.toggle('compare', state.compare)
+  document.body.classList.toggle('compare-row', state.compare && state.compareOrient === 'row')
+  document.body.classList.toggle('compare-col', state.compare && state.compareOrient === 'col')
+  document.body.dataset.compareOrient = state.compare ? state.compareOrient : ''
   els.stageSingle.hidden = state.compare
   els.compareWrap.hidden = !state.compare
   els.footSingle.hidden = state.compare
   els.footCompare.hidden = !state.compare
+  els.compareOrient.hidden = !state.compare
+  for (const btn of els.compareOrient.querySelectorAll('.seg-btn')) {
+    const on = btn.dataset.orient === state.compareOrient
+    btn.classList.toggle('active', on)
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false')
+  }
   els.layout.disabled = state.compare
   els.layout.title = state.compare ? '对比模式下同时显示默认与 ELK，布局选择暂不可用' : '只影响流程图 / graph；其他图类型只换配色'
-  // 顶部按钮：对比时仍可用，作用于右侧 ELK（与单预览的「选 ELK」一致）
-  const tip = state.compare ? '（对比模式：复制右侧 ELK）' : ''
+  const side = state.compareOrient === 'col' ? '下方' : '右侧'
+  const tip = state.compare ? `（对比模式：复制${side} ELK）` : ''
   els.copyPng.title = '复制 PNG 到剪贴板，直接粘贴进飞书' + tip
   els.copySvg.title = '干净的独立 SVG，可导入飞书画板' + tip
   els.downloadPng.title = '剪贴板不可用时下载 PNG' + tip
@@ -142,7 +161,7 @@ async function update() {
       state.renderer = resE.renderer
       els.renderer.textContent = `对比 · ${resD.renderer} | ${resE.renderer}`
       els.renderer.className = 'badge'
-      els.renderer.title = '左：默认布局 · 右：ELK；顶部复制按钮默认取右侧 ELK'
+      els.renderer.title = state.compareOrient === 'col' ? '上：默认布局 · 下：ELK；顶部复制按钮取 ELK' : '左：默认布局 · 右：ELK；顶部复制按钮取右侧 ELK'
       els.size.textContent = ''
       const notes = [resD.note, resE.note].filter(Boolean)
       els.error.hidden = !notes.length
@@ -260,6 +279,11 @@ els.compare.addEventListener('change', () => {
   applyCompareChrome()
   update()
 })
+els.compareOrient.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-orient]')
+  if (!btn) return
+  setCompareOrient(btn.dataset.orient)
+})
 els.scale.addEventListener('change', () => {
   state.scale = Number(els.scale.value)
   store(LS.scale, String(state.scale))
@@ -303,7 +327,7 @@ els.copyPng.addEventListener('click', async () => {
   const p = makePng(which)
   try {
     await copyPng(p)
-    toast(state.compare ? '已复制右侧 ELK 的 PNG ✓' : 'PNG 已复制，去飞书里直接粘贴 ✓')
+    toast(state.compare ? `已复制${state.compareOrient === 'col' ? '下方' : '右侧'} ELK 的 PNG ✓` : 'PNG 已复制，去飞书里直接粘贴 ✓')
   } catch (e) {
     try { download(await p, pngName(which)); toast('剪贴板不可用，已改为下载 PNG：' + (e.message || e), 4000) }
     catch (e2) { toast('PNG 生成失败：' + (e2.message || e2), 4000) }
@@ -319,7 +343,7 @@ els.copySvg.addEventListener('click', async () => {
   const which = state.compare ? 'elk' : null
   try {
     await copyText(flat(which))
-    toast(state.compare ? '已复制右侧 ELK 的 SVG' : '独立 SVG 已复制，可导入飞书画板（飞书文档图片不支持 SVG）', 3000)
+    toast(state.compare ? `已复制${state.compareOrient === 'col' ? '下方' : '右侧'} ELK 的 SVG` : '独立 SVG 已复制，可导入飞书画板（飞书文档图片不支持 SVG）', 3000)
   } catch (e) { toast('复制失败：' + e.message) }
 })
 els.copyHtml.addEventListener('click', async () => {
@@ -336,7 +360,7 @@ els.copyHtml.addEventListener('click', async () => {
       els.error.textContent = `HTML 已复制，但有 ${kb} KB，超过飞书 HTML 小组件 500 KB 上限，可能贴不进去。建议改用 PNG。`
       toast(`HTML ${kb} KB，超过 500 KB 上限！`, 4000)
     } else {
-      toast(state.compare ? `已复制右侧 ELK 的 HTML（${kb} KB）` : `HTML 小组件代码已复制（${kb} KB）`)
+      toast(state.compare ? `已复制${state.compareOrient === 'col' ? '下方' : '右侧'} ELK 的 HTML（${kb} KB）` : `HTML 小组件代码已复制（${kb} KB）`)
     }
   } catch (e) { toast('复制失败：' + (e.message || e)) }
 })
