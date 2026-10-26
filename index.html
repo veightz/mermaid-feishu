@@ -30,7 +30,11 @@
         <button type="button" data-orient="row" class="seg-btn active" aria-pressed="true">左右</button>
         <button type="button" data-orient="col" class="seg-btn" aria-pressed="false">上下</button>
       </span>
-      <label>倍率
+      <label class="zoom" title="只影响屏幕上的预览大小，不改变导出 PNG 的像素倍率">预览缩放
+        <input type="range" id="zoom" min="50" max="200" step="10" value="100" />
+        <span class="zoom-val" id="zoom-val">100%</span>
+      </label>
+      <label title="导出 PNG 的像素倍率（与预览缩放无关）">倍率
         <select id="scale"><option value="2">2x</option><option value="3">3x</option></select>
       </label>
     </div>
@@ -56,7 +60,7 @@
       </div>
       <div id="error" class="error" hidden></div>
       <div id="wide-hint" class="wide-hint" role="status" hidden></div>
-      <div class="stage-wrap" id="stage-single"><div id="stage" class="stage"></div></div>
+      <div class="stage-wrap" id="stage-single"><div class="stage-zoom-outer"><div id="stage" class="stage stage-zoom"></div></div></div>
       <div class="compare-wrap" id="compare-wrap" hidden>
         <div class="compare-col" data-layout="default">
           <div class="compare-head">
@@ -66,7 +70,7 @@
               <button type="button" data-copy="svg" data-which="default" title="复制此侧 SVG">复制 SVG</button>
             </span>
           </div>
-          <div class="stage-wrap"><div id="stage-default" class="stage"></div></div>
+          <div class="stage-wrap"><div class="stage-zoom-outer"><div id="stage-default" class="stage stage-zoom"></div></div></div>
         </div>
         <div class="compare-col" data-layout="elk">
           <div class="compare-head">
@@ -76,7 +80,7 @@
               <button type="button" data-copy="svg" data-which="elk" title="复制此侧 SVG">复制 SVG</button>
             </span>
           </div>
-          <div class="stage-wrap"><div id="stage-elk" class="stage"></div></div>
+          <div class="stage-wrap"><div class="stage-zoom-outer"><div id="stage-elk" class="stage stage-zoom"></div></div></div>
         </div>
       </div>
       <div class="foot" id="foot-single">预览宽度按飞书正文约 820px 显示；PNG = 图的原始尺寸 × 倍率（最长边不超过 4096px，超出会等比缩小；倍率保底 1x，最长边最多 8192px）。</div>

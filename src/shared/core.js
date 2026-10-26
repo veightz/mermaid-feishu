@@ -564,17 +564,29 @@ export function cleanSvg(svg, bg) {
   return '<?xml version="1.0" encoding="UTF-8"?>\n' + svg
 }
 
-/** 飞书 HTML 小组件：自包含 HTML，内联 SVG，无外部脚本/字体，居中、按 820px 自适应 */
-export function buildHtmlWidget(clean, bg) {
+/** 把干净 SVG 收成适合 HTML 小组件的内联片段 */
+function inlineSvgForWidget(clean, bg) {
   const { width } = svgDims(clean)
   const cssW = Math.min(width || FEISHU_WIDTH, FEISHU_WIDTH)
-  const inline = clean.replace(/^\s*<\?xml[^>]*>\s*/, '').replace(/<svg\b[^>]*>/, (tag) => {
+  return clean.replace(/^\s*<\?xml[^>]*>\s*/, '').replace(/<svg\b[^>]*>/, (tag) => {
     tag = setAttr(tag, 'width', '100%')
     tag = removeAttr(tag, 'height')
     tag = setAttr(tag, 'preserveAspectRatio', 'xMidYMid meet')
     return setAttr(tag, 'style', `display:block;width:100%;max-width:${cssW}px;height:auto;margin:0 auto;background-color:${bg}`)
   })
-  return `<!DOCTYPE html>
+}
+
+/**
+ * 飞书 HTML 小组件：自包含 HTML，内联 SVG，无外部脚本/字体，居中、按 820px 自适应。
+ * 若传入 second（另一走向的 SVG）与 dirs={ primary:'TB'|'LR', secondary:... }，
+ * 用纯 CSS radio 切换两张图（不依赖 script，飞书若剥脚本仍可用）。
+ */
+export function buildHtmlWidget(clean, bg, second = null, opts = {}) {
+  const primaryDir = (opts.primaryDir || 'TB').toUpperCase()
+  const secondaryDir = (opts.secondaryDir || (primaryDir === 'LR' || primaryDir === 'RL' ? 'TB' : 'LR')).toUpperCase()
+  const primary = inlineSvgForWidget(clean, bg)
+  if (!second) {
+    return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
@@ -588,12 +600,54 @@ body{font-family:${CJK_STACK};}
 </head>
 <body>
 <div class="mf-wrap">
-${inline}
+${primary}
+</div>
+</body>
+</html>
+`
+  }
+  const secondary = inlineSvgForWidget(second, bg)
+  const pLabel = (primaryDir === 'LR' || primaryDir === 'RL') ? '左右 LR' : '上下 TB'
+  const sLabel = (secondaryDir === 'LR' || secondaryDir === 'RL') ? '左右 LR' : '上下 TB'
+  // 无脚本：radio + 兄弟选择器切换显示（飞书 HTML 小组件通常保留 style / form 控件）
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mermaid</title>
+<style>
+html,body{margin:0;padding:0;background:${bg};}
+body{font-family:${CJK_STACK};}
+.mf-wrap{box-sizing:border-box;max-width:820px;margin:0 auto;padding:12px;}
+.mf-dir{display:flex;gap:8px;justify-content:center;margin:0 0 10px;flex-wrap:wrap;}
+.mf-dir input{position:absolute;opacity:0;pointer-events:none;}
+.mf-dir label{font-size:13px;padding:4px 12px;border:1px solid #c9d8ff;border-radius:14px;background:#f0f4ff;color:#2b5cb8;cursor:pointer;user-select:none;}
+.mf-pane{display:flex;justify-content:center;}
+.mf-pane-b{display:none;}
+#mf-d-a:checked ~ .mf-dir label[for="mf-d-a"],#mf-d-b:checked ~ .mf-dir label[for="mf-d-b"]{background:#3370ff;border-color:#3370ff;color:#fff;}
+#mf-d-a:checked ~ .mf-pane-a{display:flex;}
+#mf-d-a:checked ~ .mf-pane-b{display:none;}
+#mf-d-b:checked ~ .mf-pane-a{display:none;}
+#mf-d-b:checked ~ .mf-pane-b{display:flex;}
+</style>
+</head>
+<body>
+<div class="mf-wrap">
+<input type="radio" name="mf-dir" id="mf-d-a" checked>
+<input type="radio" name="mf-dir" id="mf-d-b">
+<div class="mf-dir">
+  <label for="mf-d-a">${pLabel}</label>
+  <label for="mf-d-b">${sLabel}</label>
+</div>
+<div class="mf-pane mf-pane-a">${primary}</div>
+<div class="mf-pane mf-pane-b">${secondary}</div>
 </div>
 </body>
 </html>
 `
 }
+
 
 export function byteLength(s) { return new TextEncoder().encode(s).length }
 

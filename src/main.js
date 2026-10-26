@@ -7,7 +7,7 @@ import { THEME_LABELS, LAYOUTS, LAYOUT_LABELS, themeDefaultLayout, parseLayout, 
 const $ = (id) => document.getElementById(id)
 const els = {
   source: $('source'), stage: $('stage'), error: $('error'), renderer: $('renderer'), size: $('size'),
-  theme: $('theme'), layout: $('layout'), flowDir: $('flow-dir'), compare: $('compare'), compareOrient: $('compare-orient'), scale: $('scale'),
+  theme: $('theme'), layout: $('layout'), flowDir: $('flow-dir'), compare: $('compare'), compareOrient: $('compare-orient'), zoom: $('zoom'), zoomVal: $('zoom-val'), scale: $('scale'),
   wideHint: $('wide-hint'), example: $('example'), toast: $('toast'),
   stageSingle: $('stage-single'), compareWrap: $('compare-wrap'),
   stageDefault: $('stage-default'), stageElk: $('stage-elk'),
@@ -16,11 +16,11 @@ const els = {
   footSingle: $('foot-single'), footCompare: $('foot-compare'),
   copyPng: $('copy-png'), downloadPng: $('download-png'), copySvg: $('copy-svg'), copySrc: $('copy-src'), copyHtml: $('copy-html'),
 }
-const LS = { src: 'mf.source', theme: 'mf.theme', layout: 'mf.layout', scale: 'mf.scale', compare: 'mf.compare', compareOrient: 'mf.compareOrient' }
+const LS = { src: 'mf.source', theme: 'mf.theme', layout: 'mf.layout', scale: 'mf.scale', zoom: 'mf.zoom', compare: 'mf.compare', compareOrient: 'mf.compareOrient' }
 
 const SCALE_STEPS = [2, 3] // 与 #scale 选项一致
 const state = {
-  svg: '', renderer: '', theme: DEFAULT_THEME, layout: 'elk', scale: 2, ok: false, compare: false, compareOrient: 'row',
+  svg: '', renderer: '', theme: DEFAULT_THEME, layout: 'elk', scale: 2, zoom: 1, ok: false, compare: false, compareOrient: 'row',
   // compare 两侧：{ svg, flat, renderer, note }
   panes: { default: null, elk: null },
 }
@@ -77,6 +77,12 @@ els.layout.value = state.layout
 els.compare.checked = state.compare
 syncLayoutLabel()
 els.scale.value = String(state.scale)
+{
+  const z = Number(load(LS.zoom))
+  state.zoom = (Number.isFinite(z) && z >= 0.5 && z <= 2) ? Math.round(z * 10) / 10 : 1
+}
+els.zoom.value = String(Math.round(state.zoom * 100))
+applyPreviewZoom()
 els.source.value = load(LS.src) ?? EXAMPLES[0].code
 applyCompareChrome()
 
@@ -88,6 +94,14 @@ if (q.get('compare') === '1') { state.compare = true; els.compare.checked = true
 const qOrient = (q.get('compareOrient') || '').toLowerCase()
 if (qOrient === 'row' || qOrient === 'col') { state.compareOrient = qOrient; store(LS.compareOrient, qOrient) }
 applyCompareChrome()
+
+function applyPreviewZoom() {
+  const z = state.zoom
+  document.documentElement.style.setProperty('--preview-zoom', String(z))
+  els.zoomVal.textContent = `${Math.round(z * 100)}%`
+  // Chromium: zoom 参与布局，滚动区域正确；Firefox 用 transform 兜底（见 CSS）
+  for (const el of document.querySelectorAll('.stage-zoom')) el.style.zoom = z
+}
 
 function setCompareOrient(orient) {
   state.compareOrient = orient === 'col' ? 'col' : 'row'
@@ -349,14 +363,20 @@ els.compare.addEventListener('change', () => {
     scaleBeforeCompare = state.scale
     scaleTouchedDuringCompare = false
     bumpScaleOne() // 2x→3x；已是最高档则不动
-  } else if (scaleBeforeCompare != null && !scaleTouchedDuringCompare) {
-    applyScale(scaleBeforeCompare)
-    scaleBeforeCompare = null
   } else {
+    // 关掉对比：清掉双栏残留，避免「看起来还在对比」
+    fillPane('default', null)
+    fillPane('elk', null)
+    if (scaleBeforeCompare != null && !scaleTouchedDuringCompare) applyScale(scaleBeforeCompare)
     scaleBeforeCompare = null
   }
   applyCompareChrome()
   update()
+})
+els.zoom.addEventListener('input', () => {
+  state.zoom = Number(els.zoom.value) / 100
+  store(LS.zoom, String(state.zoom))
+  applyPreviewZoom()
 })
 els.compareOrient.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-orient]')
@@ -389,7 +409,24 @@ function flat(which) {
   if (!state.flat) state.flat = cleanSvg(state.svg, THEMES[state.theme].bg)
   return state.flat
 }
-function htmlWidget() { return buildHtmlWidget(flat(), THEMES[state.theme].bg) }
+async function htmlWidget() {
+  const bg = THEMES[state.theme].bg
+  const primary = state.compare ? flat('elk') : flat()
+  const info = detectFlowHeader(els.source.value)
+  if (!info) return buildHtmlWidget(primary, bg)
+  // 流程图：再渲另一走向，HTML 里用纯 CSS 切换（无需 script）
+  const cur = info.dir === 'TD' ? 'TB' : info.dir
+  const other = isHorizontalDir(cur) ? 'TB' : 'LR'
+  const otherCode = setFlowDirection(els.source.value, other)
+  if (!otherCode || otherCode === els.source.value) return buildHtmlWidget(primary, bg)
+  try {
+    const res = await render(otherCode, state.theme, state.compare ? 'elk' : state.layout)
+    const second = cleanSvg(res.svg, bg)
+    return buildHtmlWidget(primary, bg, second, { primaryDir: cur, secondaryDir: other })
+  } catch {
+    return buildHtmlWidget(primary, bg)
+  }
+}
 function makePng(which) {
   const svg = which ? flat(which) : flat()
   return svgToPngBlob(svg, state.scale, THEMES[state.theme].bg)
@@ -423,18 +460,17 @@ els.copySvg.addEventListener('click', async () => {
 els.copyHtml.addEventListener('click', async () => {
   if (!state.ok) return
   try {
-    const html = state.compare
-      ? buildHtmlWidget(flat('elk'), THEMES[state.theme].bg)
-      : htmlWidget()
+    const html = await htmlWidget()
     const size = new Blob([html]).size
     await copyText(html)
     const kb = (size / 1024).toFixed(1)
+    const hasToggle = html.includes('mf-d-a')
     if (size > HTML_WIDGET_LIMIT) {
       els.error.hidden = false; els.error.classList.add('warn')
       els.error.textContent = `HTML 已复制，但有 ${kb} KB，超过飞书 HTML 小组件 500 KB 上限，可能贴不进去。建议改用 PNG。`
       toast(`HTML ${kb} KB，超过 500 KB 上限！`, 4000)
     } else {
-      toast(state.compare ? `已复制${state.compareOrient === 'col' ? '下方' : '右侧'} ELK 的 HTML（${kb} KB）` : `HTML 小组件代码已复制（${kb} KB）`)
+      toast(hasToggle ? `HTML 小组件已复制（含 LR/TB 切换，${kb} KB）` : `HTML 小组件代码已复制（${kb} KB）`)
     }
   } catch (e) { toast('复制失败：' + (e.message || e)) }
 })

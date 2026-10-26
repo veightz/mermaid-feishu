@@ -45,6 +45,10 @@ textarea { flex: 1; border: 0; outline: none; resize: none; padding: 12px; font-
   flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0;
   overflow: hidden; border-top: 0;
 }
+/* display:grid 会压过原生 [hidden]{display:none}，必须显式盖回去 */
+.compare-wrap[hidden], #stage-single[hidden], .foot[hidden], #compare-orient[hidden], #flow-dir[hidden] {
+  display: none !important;
+}
 .compare-col {
   display: flex; flex-direction: column; min-height: 0; min-width: 0;
   border-left: 1px solid var(--border);
@@ -81,3 +85,27 @@ body.compare-col .compare-col:first-child { border-top: 0; }
   border: 1px solid #b7c9ef; border-radius: 6px; background: #fff; color: #2b5cb8; cursor: pointer;
 }
 .wide-hint button.hint-action:hover { background: #e1eaff; }
+
+.controls label.zoom {
+  gap: 8px;
+}
+.controls label.zoom input[type="range"] {
+  width: 100px; accent-color: var(--brand); cursor: pointer;
+}
+.controls label.zoom .zoom-val {
+  min-width: 3.2em; font-variant-numeric: tabular-nums; color: #1f2329;
+}
+.stage-zoom-outer {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+/* 预览缩放：Chromium 用 element.zoom（占布局）；Firefox 用 transform 兜底 */
+.stage-zoom {
+  transform-origin: top center;
+}
+@supports not (zoom: 1) {
+  .stage-zoom {
+    transform: scale(var(--preview-zoom, 1));
+  }
+}
