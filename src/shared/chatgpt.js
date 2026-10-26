@@ -83,9 +83,15 @@ const ROOT_OPTIONS = {
   'nodePlacement.strategy': 'BRANDES_KOEPF',
   'elk.layered.mergeEdges': 'false',
   'spacing.baseValue': '40',
+  'elk.spacing.edgeNode': '20',
+  'elk.spacing.edgeEdge': '16',
+  'elk.layered.spacing.edgeNodeBetweenLayers': '28',
+  'elk.layered.spacing.edgeEdgeBetweenLayers': '18',
   'elk.layered.crossingMinimization.forceNodeModelOrder': 'false',
   'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
   'elk.layered.unnecessaryBendpoints': 'true',
+  // 尽量拉直正交折线，减少钻石节点出口旁的微小错位
+  'elk.layered.nodePlacement.bk.edgeStraightening': 'IMPROVE_STRAIGHTNESS',
   'elk.layered.wrapping.multiEdge.improveCuts': 'true',
   'elk.layered.wrapping.multiEdge.improveWrappedEdges': 'true',
   'elk.layered.edgeRouting.selfLoopDistribution': 'EQUALLY',
@@ -214,7 +220,7 @@ export async function renderChatGPTFlowchart(code, palette = null) {
     for (const p of pts) grow(p[0], p[1])
     const dash = src.style === 'dotted' ? ' stroke-dasharray="3 3"' : ''
     const sw = src.style === 'thick' ? 2 : 1
-    edgeParts.push(`<path class="cg-edge" data-from="${esc(src.source)}" data-to="${esc(src.target)}" d="${roundedPath(pts, CG.corner)}" fill="none" stroke="${P.line}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"${dash}/>` +
+    edgeParts.push(`<path class="cg-edge" data-from="${esc(src.source)}" data-to="${esc(src.target)}" d="${roundedPath(simplifyOrtho(pts), CG.corner)}" fill="none" stroke="${P.line}" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round"${dash}/>` +
       tips.map((t) => `<path d="${t}" fill="none" stroke="${P.arrow}" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>`).join(''))
     const lab = e.labels?.[0]
     if (src.label && lab) {
@@ -265,17 +271,133 @@ function pull(pts, end, prev) {
   return { pts, tip }
 }
 
+/** 正交折线清理：去重、共线点、过短错位（钻石口旁几像素阶梯） */
+function simplifyOrtho(pts, jog = 8, eps = 1.25) {
+  if (!pts || pts.length < 2) return pts
+  const nearly = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) <= eps
+  const dedupe = (arr) => {
+    const o = [arr[0].slice()]
+    for (let i = 1; i < arr.length; i++) {
+      if (!nearly(o[o.length - 1], arr[i])) o.push(arr[i].slice())
+      else o[o.length - 1] = arr[i].slice()
+    }
+    return o
+  }
+  let out = dedupe(pts.map((p) => p.slice()))
+  // 共线（同向）中间点
+  const dropColinear = (arr) => {
+    if (arr.length < 3) return arr
+    const o = [arr[0].slice()]
+    for (let i = 1; i < arr.length - 1; i++) {
+      const a = o[o.length - 1], b = arr[i], c = arr[i + 1]
+      const abx = b[0] - a[0], aby = b[1] - a[1]
+      const bcx = c[0] - b[0], bcy = c[1] - b[1]
+      const lab = Math.hypot(abx, aby), lbc = Math.hypot(bcx, bcy)
+      if (lab < eps) continue
+      const cross = abx * bcy - aby * bcx
+      const dot = abx * bcx + aby * bcy
+      if (Math.abs(cross) <= eps * Math.max(lab, lbc, 1) && dot >= -eps) continue // 共线同向
+      o.push(b.slice())
+    }
+    o.push(arr[arr.length - 1].slice())
+    return dedupe(o)
+  }
+  // 竖-短横-竖 / 横-短竖-横 → 拉直
+  const dropMicroJog = (arr) => {
+    if (arr.length < 4) return arr
+    const o = []
+    let i = 0
+    while (i < arr.length) {
+      if (i + 3 < arr.length) {
+        const a = arr[i], b = arr[i + 1], c = arr[i + 2], d = arr[i + 3]
+        const abx = b[0] - a[0], aby = b[1] - a[1]
+        const bcx = c[0] - b[0], bcy = c[1] - b[1]
+        const cdx = d[0] - c[0], cdy = d[1] - c[1]
+        const lab = Math.hypot(abx, aby), lbc = Math.hypot(bcx, bcy), lcd = Math.hypot(cdx, cdy)
+        const abV = Math.abs(abx) <= eps, abH = Math.abs(aby) <= eps
+        const bcV = Math.abs(bcx) <= eps, bcH = Math.abs(bcy) <= eps
+        const cdV = Math.abs(cdx) <= eps, cdH = Math.abs(cdy) <= eps
+        if (abV && bcH && cdV && lbc <= jog && lab > eps && lcd > eps) {
+          // 只改当前竖段 a→d 的 x，绝不改写上一段拐角
+          const x = lab >= lcd ? a[0] : d[0]
+          const last = o[o.length - 1]
+          if (last && Math.abs(last[0] - a[0]) <= eps && Math.abs(last[1] - a[1]) <= eps) o[o.length - 1] = [x, a[1]]
+          else o.push([x, a[1]])
+          o.push([x, d[1]])
+          i += 4
+          continue
+        }
+        if (abH && bcV && cdH && lbc <= jog && lab > eps && lcd > eps) {
+          const y = lab >= lcd ? a[1] : d[1]
+          const last = o[o.length - 1]
+          if (last && Math.abs(last[0] - a[0]) <= eps && Math.abs(last[1] - a[1]) <= eps) o[o.length - 1] = [a[0], y]
+          else o.push([a[0], y])
+          o.push([d[0], y])
+          i += 4
+          continue
+        }
+      }
+      // 末端短 stub：…→A→B→C 且 B→C 很短、几乎正交错位
+      if (i + 2 === arr.length - 1 && i + 2 < arr.length) {
+        const a = arr[i], b = arr[i + 1], c = arr[i + 2]
+        const abx = b[0] - a[0], aby = b[1] - a[1]
+        const bcx = c[0] - b[0], bcy = c[1] - b[1]
+        const lbc = Math.hypot(bcx, bcy)
+        const abV = Math.abs(abx) <= eps, abH = Math.abs(aby) <= eps
+        if (lbc <= jog && abV && Math.abs(c[0] - a[0]) <= jog) {
+          if (!o.length) o.push([a[0], a[1]])
+          o.push([a[0], c[1]])
+          i += 3
+          continue
+        }
+        if (lbc <= jog && abH && Math.abs(c[1] - a[1]) <= jog) {
+          if (!o.length) o.push([a[0], a[1]])
+          o.push([c[0], a[1]])
+          i += 3
+          continue
+        }
+      }
+      o.push(arr[i].slice())
+      i++
+    }
+    return dedupe(o)
+  }
+  for (let pass = 0; pass < 4; pass++) {
+    const n = out.length
+    out = dropMicroJog(dropColinear(out))
+    if (out.length === n) break
+  }
+  return out.length >= 2 ? out : pts
+}
+
 function roundedPath(pts, r) {
+  if (!pts || pts.length < 2) return ''
+  if (pts.length === 2) return `M ${n2(pts[0][0])} ${n2(pts[0][1])} L ${n2(pts[1][0])} ${n2(pts[1][1])}`
   let d = `M ${n2(pts[0][0])} ${n2(pts[0][1])}`
   for (let i = 1; i < pts.length - 1; i++) {
     const [px, py] = pts[i - 1], [x, y] = pts[i], [nx, ny] = pts[i + 1]
     const l1 = Math.hypot(x - px, y - py), l2 = Math.hypot(nx - x, ny - y)
+    if (l1 < 1e-6 || l2 < 1e-6) { d += ` L ${n2(x)} ${n2(y)}`; continue }
+    // 转向幅度：共线同向不圆角
+    const ux = (x - px) / l1, uy = (y - py) / l1
+    const vx = (nx - x) / l2, vy = (ny - y) / l2
+    const turn = Math.abs(ux * vy - uy * vx) // |sin θ|
+    if (turn < 0.08) { d += ` L ${n2(x)} ${n2(y)}`; continue } // ≈0°/180°
+    // 邻段太短：不圆角（短于约 2r）
+    if (l1 < r * 2 || l2 < r * 2) {
+      const rr = Math.min(r, l1 / 2, l2 / 2)
+      if (rr < 1.25) { d += ` L ${n2(x)} ${n2(y)}`; continue }
+      const ax = x - ux * rr, ay = y - uy * rr
+      const bx = x + vx * rr, by = y + vy * rr
+      d += ` L ${n2(ax)} ${n2(ay)} Q ${n2(x)} ${n2(y)} ${n2(bx)} ${n2(by)}`
+      continue
+    }
     const rr = Math.min(r, l1 / 2, l2 / 2)
-    if (rr < 0.5) { d += ` L ${n2(x)} ${n2(y)}`; continue }
-    const ax = x - ((x - px) / l1) * rr, ay = y - ((y - py) / l1) * rr
-    const bx = x + ((nx - x) / l2) * rr, by = y + ((ny - y) / l2) * rr
+    const ax = x - ux * rr, ay = y - uy * rr
+    const bx = x + vx * rr, by = y + vy * rr
     d += ` L ${n2(ax)} ${n2(ay)} Q ${n2(x)} ${n2(y)} ${n2(bx)} ${n2(by)}`
   }
   const [lx, ly] = pts[pts.length - 1]
   return d + ` L ${n2(lx)} ${n2(ly)}`
 }
+
