@@ -95,17 +95,21 @@ body.compare-col .compare-col:first-child { border-top: 0; }
 .controls label.zoom .zoom-val {
   min-width: 3.2em; font-variant-numeric: tabular-nums; color: #1f2329;
 }
+/* 预览缩放：JS 直接给 svg 设像素宽度（适应宽度 × 缩放），不再受 max-width:100% 钳制；
+   超出部分只在 .stage-wrap 内滚动（不撑宽页面）。外层 max-content + min-width:100%
+   保证小图居中、大图左边缘可滚到（flex 居中溢出时左侧会被裁掉）。 */
+.stage-wrap { min-width: 0; min-height: 0; overscroll-behavior: contain; }
 .stage-zoom-outer {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   display: flex;
   justify-content: center;
 }
-/* 预览缩放：Chromium 用 element.zoom（占布局）；Firefox 用 transform 兜底 */
-.stage-zoom {
-  transform-origin: top center;
-}
-@supports not (zoom: 1) {
-  .stage-zoom {
-    transform: scale(var(--preview-zoom, 1));
-  }
-}
+.stage.stage-zoom { width: auto; max-width: none; margin: 0; }
+.stage.stage-zoom svg { max-width: none; flex: none; }
+.preview-pane { min-width: 0; }
+/* 拖拽平移（右键 / 中键 / 空格+左键） */
+.stage-wrap.pan-ready { cursor: grab; }
+.stage-wrap.panning { cursor: grabbing; user-select: none; }
+.stage-wrap.panning * { cursor: grabbing !important; }
+.zoom-reset { padding: 3px 8px; font-size: 12px; }

@@ -79,7 +79,7 @@ syncLayoutLabel()
 els.scale.value = String(state.scale)
 {
   const z = Number(load(LS.zoom))
-  state.zoom = (Number.isFinite(z) && z >= 0.5 && z <= 2) ? Math.round(z * 10) / 10 : 1
+  state.zoom = (Number.isFinite(z) && z >= 0.5 && z <= 4) ? Math.round(z * 10) / 10 : 1
 }
 els.zoom.value = String(Math.round(state.zoom * 100))
 applyPreviewZoom()
@@ -96,12 +96,144 @@ const qOrient = (q.get('compareOrient') || '').toLowerCase()
 if (qOrient === 'row' || qOrient === 'col') { state.compareOrient = qOrient; store(LS.compareOrient, qOrient) }
 applyCompareChrome()
 
+const ZOOM_MIN = 0.5, ZOOM_MAX = 4
+const STAGE_BASE_W = 820 // 飞书正文约 820px
+
+// svg 的固有宽度（viewBox / width 属性），用于“适应宽度”基准
+function svgNaturalWidth(svg) {
+  const vb = svg.viewBox && svg.viewBox.baseVal
+  const wAttr = parseFloat(svg.getAttribute('width'))
+  if (Number.isFinite(wAttr) && wAttr > 0 && !/%/.test(svg.getAttribute('width') || '')) return wAttr
+  if (vb && vb.width > 0) return vb.width
+  return STAGE_BASE_W
+}
+
+// 100% = 适应宽度（不超过固有宽度、820px 和预览区宽度）；之后按缩放倍数直接放大像素宽度
+function sizeStageSvg(stage) {
+  const svg = stage.querySelector(':scope > svg')
+  if (!svg) return
+  const wrap = stage.closest('.stage-wrap')
+  if (!svg.dataset.natW) svg.dataset.natW = String(svgNaturalWidth(svg))
+  const nat = Number(svg.dataset.natW)
+  let avail = STAGE_BASE_W
+  if (wrap && wrap.clientWidth > 0) {
+    const cs = getComputedStyle(wrap)
+    avail = Math.min(STAGE_BASE_W, wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight))
+  }
+  const fit = Math.max(40, Math.min(nat, avail))
+  svg.style.width = `${Math.round(fit * state.zoom)}px`
+  svg.style.height = 'auto'
+  svg.style.maxWidth = 'none'
+}
+
 function applyPreviewZoom() {
   const z = state.zoom
   document.documentElement.style.setProperty('--preview-zoom', String(z))
   els.zoomVal.textContent = `${Math.round(z * 100)}%`
-  // Chromium: zoom 参与布局，滚动区域正确；Firefox 用 transform 兜底（见 CSS）
-  for (const el of document.querySelectorAll('.stage-zoom')) el.style.zoom = z
+  for (const el of document.querySelectorAll('.stage-zoom')) sizeStageSvg(el)
+}
+
+function setZoom(z, anchor) {
+  z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 10) / 10))
+  if (z === state.zoom) return
+  // anchor: { wrap, x, y } —— 保持鼠标下的点不动
+  let rel = null
+  if (anchor && anchor.wrap) {
+    const w = anchor.wrap
+    rel = { w, x: anchor.x, y: anchor.y, cx: (w.scrollLeft + anchor.x) / Math.max(1, w.scrollWidth), cy: (w.scrollTop + anchor.y) / Math.max(1, w.scrollHeight) }
+  }
+  state.zoom = z
+  els.zoom.value = String(Math.round(z * 100))
+  store(LS.zoom, String(z))
+  applyPreviewZoom()
+  if (rel) {
+    rel.w.scrollLeft = rel.cx * rel.w.scrollWidth - rel.x
+    rel.w.scrollTop = rel.cy * rel.w.scrollHeight - rel.y
+  }
+}
+
+// svg 换了内容 / 预览区尺寸变了 → 重新计算像素宽度
+{
+  const mo = new MutationObserver((muts) => {
+    const seen = new Set()
+    for (const m of muts) { const st = m.target.closest?.('.stage-zoom') || m.target; if (st.classList?.contains('stage-zoom')) seen.add(st) }
+    for (const st of seen) sizeStageSvg(st)
+  })
+  const ro = new ResizeObserver(() => applyPreviewZoom())
+  for (const st of document.querySelectorAll('.stage-zoom')) {
+    mo.observe(st, { childList: true })
+    const wrap = st.closest('.stage-wrap')
+    if (wrap) ro.observe(wrap)
+  }
+}
+
+// 预览区拖拽平移：右键 / 中键 / 空格+左键（参考飞书画板）；每个预览区独立滚动
+{
+  let spaceDown = false
+  let drag = null
+  const isTyping = (t) => t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.isContentEditable)
+  const wraps = () => document.querySelectorAll('.stage-wrap')
+  window.addEventListener('keydown', (e) => {
+    if (e.code !== 'Space' || isTyping(e.target)) return
+    if (!spaceDown) { spaceDown = true; for (const w of wraps()) w.classList.add('pan-ready') }
+    if (e.target === document.body || e.target.closest?.('.stage-wrap')) e.preventDefault()
+  })
+  window.addEventListener('keyup', (e) => {
+    if (e.code !== 'Space') return
+    spaceDown = false
+    for (const w of wraps()) w.classList.remove('pan-ready')
+  })
+  window.addEventListener('blur', () => { spaceDown = false; for (const w of wraps()) w.classList.remove('pan-ready') })
+
+  for (const wrap of wraps()) {
+    wrap.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'mouse') return
+      const ok = e.button === 2 || e.button === 1 || (e.button === 0 && spaceDown)
+      if (!ok) return
+      e.preventDefault()
+      drag = { wrap, id: e.pointerId, x: e.clientX, y: e.clientY, sl: wrap.scrollLeft, st: wrap.scrollTop, moved: false }
+      try { wrap.setPointerCapture(e.pointerId) } catch {}
+      wrap.classList.add('panning')
+    })
+    wrap.addEventListener('pointermove', (e) => {
+      if (!drag || drag.wrap !== wrap || e.pointerId !== drag.id) return
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y
+      if (Math.abs(dx) + Math.abs(dy) > 2) drag.moved = true
+      wrap.scrollLeft = drag.sl - dx
+      wrap.scrollTop = drag.st - dy
+    })
+    const end = (e) => {
+      if (!drag || drag.wrap !== wrap) return
+      try { wrap.releasePointerCapture(drag.id) } catch {}
+      wrap.classList.remove('panning')
+      drag = null
+    }
+    wrap.addEventListener('pointerup', end)
+    wrap.addEventListener('pointercancel', end)
+    wrap.addEventListener('lostpointercapture', end)
+    // 预览区内不弹右键菜单（右键用于拖拽）；中键不触发自动滚动
+    wrap.addEventListener('contextmenu', (e) => e.preventDefault())
+    wrap.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault() })
+    wrap.addEventListener('auxclick', (e) => { if (e.button === 1) e.preventDefault() })
+    // Ctrl/⌘ + 滚轮：以鼠标位置为锚点缩放，并同步滑杆
+    wrap.addEventListener('wheel', (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return
+      e.preventDefault()
+      const r = wrap.getBoundingClientRect()
+      const step = e.deltaY < 0 ? 0.1 : -0.1
+      setZoom(state.zoom + step, { wrap, x: e.clientX - r.left, y: e.clientY - r.top })
+    }, { passive: false })
+    // 双击空白处：重置
+    wrap.addEventListener('dblclick', (e) => {
+      if (e.target.closest('svg text, svg foreignObject')) return
+      resetPreviewView()
+    })
+  }
+}
+
+function resetPreviewView() {
+  setZoom(1)
+  for (const w of document.querySelectorAll('.stage-wrap')) { w.scrollLeft = 0; w.scrollTop = 0 }
 }
 
 function setCompareOrient(orient) {
@@ -379,6 +511,7 @@ els.zoom.addEventListener('input', () => {
   store(LS.zoom, String(state.zoom))
   applyPreviewZoom()
 })
+$('zoom-reset').addEventListener('click', resetPreviewView)
 els.compareOrient.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-orient]')
   if (!btn) return

@@ -30,10 +30,11 @@
         <button type="button" data-orient="row" class="seg-btn active" aria-pressed="true">左右</button>
         <button type="button" data-orient="col" class="seg-btn" aria-pressed="false">上下</button>
       </span>
-      <label class="zoom" title="只影响屏幕上的预览大小，不改变导出 PNG 的像素倍率">预览缩放
-        <input type="range" id="zoom" min="50" max="200" step="10" value="100" />
+      <label class="zoom" title="只影响屏幕上的预览大小，不改变导出 PNG 的像素倍率。预览区内：右键 / 中键 / 空格+左键 拖拽平移，Ctrl/⌘+滚轮缩放">预览缩放
+        <input type="range" id="zoom" min="50" max="400" step="10" value="100" />
         <span class="zoom-val" id="zoom-val">100%</span>
       </label>
+      <button type="button" id="zoom-reset" class="zoom-reset" title="缩放回 100%（适应宽度）并回到左上角">重置</button>
       <label title="导出 PNG 的像素倍率（与预览缩放无关）">倍率
         <select id="scale"><option value="2">2x</option><option value="3">3x</option></select>
       </label>
@@ -83,7 +84,7 @@
           <div class="stage-wrap"><div class="stage-zoom-outer"><div id="stage-elk" class="stage stage-zoom"></div></div></div>
         </div>
       </div>
-      <div class="foot" id="foot-single">预览宽度按飞书正文约 820px 显示；PNG = 图的原始尺寸 × 倍率（最长边不超过 4096px，超出会等比缩小；倍率保底 1x，最长边最多 8192px）。</div>
+      <div class="foot" id="foot-single">预览宽度按飞书正文约 820px 显示；PNG = 图的原始尺寸 × 倍率（最长边不超过 4096px，超出会等比缩小；倍率保底 1x，最长边最多 8192px）。预览区：右键 / 中键 / 空格+左键拖拽平移，Ctrl/⌘+滚轮缩放，双击空白或「重置」回到 100%。</div>
       <div class="foot" id="foot-compare" hidden>对比模式：同一源码 + 同一配色；默认布局与 ELK 可左右或上下排列（顶栏「左右 / 上下」切换）。倍率对两侧相同；用各侧按钮复制对应 PNG / SVG。顶部「复制 PNG」等仍按 ELK。</div>
     </section>
   </main>
