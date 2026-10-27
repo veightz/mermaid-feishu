@@ -79,7 +79,7 @@ syncLayoutLabel()
 els.scale.value = String(state.scale)
 {
   const z = Number(load(LS.zoom))
-  state.zoom = (Number.isFinite(z) && z >= 0.5 && z <= 4) ? Math.round(z * 10) / 10 : 1
+  state.zoom = (Number.isFinite(z) && z >= 0.5 && z <= 4) ? Math.round(z * 100) / 100 : 1
 }
 els.zoom.value = String(Math.round(state.zoom * 100))
 applyPreviewZoom()
@@ -133,24 +133,62 @@ function applyPreviewZoom() {
   for (const el of document.querySelectorAll('.stage-zoom')) sizeStageSvg(el)
 }
 
-function setZoom(z, anchor) {
-  z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 10) / 10))
+// 立即设置缩放（滑杆 / 重置 / 动画每帧）。只改 svg 像素宽度，不重新渲染图。
+// anchor: { wrap, clientX, clientY } —— 保持鼠标下的图上点不动
+function setZoom(z, anchor, { round = true, persist = true } = {}) {
+  z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, round ? Math.round(z * 100) / 100 : z))
   if (z === state.zoom) return
-  // anchor: { wrap, x, y } —— 保持鼠标下的点不动
   let rel = null
   if (anchor && anchor.wrap) {
-    const w = anchor.wrap
-    rel = { w, x: anchor.x, y: anchor.y, cx: (w.scrollLeft + anchor.x) / Math.max(1, w.scrollWidth), cy: (w.scrollTop + anchor.y) / Math.max(1, w.scrollHeight) }
+    const svg = anchor.wrap.querySelector('.stage-zoom > svg')
+    if (svg) {
+      const r = svg.getBoundingClientRect()
+      if (r.width > 0 && r.height > 0) rel = { svg, fx: (anchor.clientX - r.left) / r.width, fy: (anchor.clientY - r.top) / r.height }
+    }
   }
   state.zoom = z
   els.zoom.value = String(Math.round(z * 100))
-  store(LS.zoom, String(z))
+  if (persist) store(LS.zoom, String(Math.round(z * 100) / 100))
   applyPreviewZoom()
   if (rel) {
-    rel.w.scrollLeft = rel.cx * rel.w.scrollWidth - rel.x
-    rel.w.scrollTop = rel.cy * rel.w.scrollHeight - rel.y
+    const w = anchor.wrap
+    const r = rel.svg.getBoundingClientRect()
+    w.scrollLeft += (r.left + rel.fx * r.width) - anchor.clientX
+    w.scrollTop += (r.top + rel.fy * r.height) - anchor.clientY
   }
 }
+
+// Ctrl/⌘+滚轮 / 触控板捏合：连续缩放 zoom *= exp(-deltaY * k)，rAF 约 120ms 缓动到目标
+const WHEEL_K = 0.0015
+const WHEEL_MAX_STEP = Math.log(1.1) // 单个事件最多 ±10%（鼠标滚轮一格）
+const zoomAnim = { target: null, anchor: null, raf: 0, last: 0 }
+function normWheelDelta(e, wrap) {
+  if (e.deltaMode === 1) return e.deltaY * 16 // 行
+  if (e.deltaMode === 2) return e.deltaY * (wrap?.clientHeight || 800) // 页
+  return e.deltaY
+}
+function wheelZoom(e, wrap) {
+  const dy = normWheelDelta(e, wrap)
+  const step = Math.max(-WHEEL_MAX_STEP, Math.min(WHEEL_MAX_STEP, -dy * WHEEL_K))
+  const from = zoomAnim.target ?? state.zoom
+  zoomAnim.target = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, from * Math.exp(step)))
+  zoomAnim.anchor = { wrap, clientX: e.clientX, clientY: e.clientY }
+  if (!zoomAnim.raf) { zoomAnim.last = performance.now(); zoomAnim.raf = requestAnimationFrame(zoomTick) }
+}
+function zoomTick(now) {
+  // rAF 时间戳是帧开始时间，可能早于滚轮事件时刻 → 夹到 [0, 64]
+  const dt = Math.max(0, Math.min(64, now - zoomAnim.last))
+  zoomAnim.last = now
+  const t = zoomAnim.target
+  // 指数缓动：时间常数 40ms ≈ 120ms 内走完 95%
+  let z = t + (state.zoom - t) * Math.exp(-dt / 40)
+  const done = Math.abs(z - t) < 0.002
+  if (done) z = t
+  setZoom(z, zoomAnim.anchor, { round: false, persist: done })
+  if (done) { zoomAnim.target = null; zoomAnim.raf = 0; return }
+  zoomAnim.raf = requestAnimationFrame(zoomTick)
+}
+function cancelZoomAnim() { if (zoomAnim.raf) cancelAnimationFrame(zoomAnim.raf); zoomAnim.raf = 0; zoomAnim.target = null }
 
 // svg 换了内容 / 预览区尺寸变了 → 重新计算像素宽度
 {
@@ -219,9 +257,7 @@ function setZoom(z, anchor) {
     wrap.addEventListener('wheel', (e) => {
       if (!(e.ctrlKey || e.metaKey)) return
       e.preventDefault()
-      const r = wrap.getBoundingClientRect()
-      const step = e.deltaY < 0 ? 0.1 : -0.1
-      setZoom(state.zoom + step, { wrap, x: e.clientX - r.left, y: e.clientY - r.top })
+      wheelZoom(e, wrap)
     }, { passive: false })
     // 双击空白处：重置
     wrap.addEventListener('dblclick', (e) => {
@@ -232,6 +268,7 @@ function setZoom(z, anchor) {
 }
 
 function resetPreviewView() {
+  cancelZoomAnim()
   setZoom(1)
   for (const w of document.querySelectorAll('.stage-wrap')) { w.scrollLeft = 0; w.scrollTop = 0 }
 }
@@ -507,6 +544,7 @@ els.compare.addEventListener('change', () => {
   update()
 })
 els.zoom.addEventListener('input', () => {
+  cancelZoomAnim()
   state.zoom = Number(els.zoom.value) / 100
   store(LS.zoom, String(state.zoom))
   applyPreviewZoom()
