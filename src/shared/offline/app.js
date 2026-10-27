@@ -44,6 +44,16 @@ function boot() {
   const elk = new window.MFElk.ELK({ algorithms: ['layered'], workerFactory: () => new window.MFElk.Worker() })
   let busy = 0, drawn = ''
   const say = (t) => { msg.textContent = t || '' }
+  // 源码面板：旧版是 <details>；通用版是工具栏「编辑源码」按钮 + 可收起的面板
+  const src = $('mf-src'), edit = $('mf-edit')
+  const openSrc = (o) => {
+    if (src.tagName === 'DETAILS') { src.open = o; return }
+    src.hidden = !o
+    edit.textContent = o ? '收起源码' : '编辑源码'
+    if (o) ta.focus()
+  }
+  if (edit) edit.onclick = () => openSrc(src.hidden)
+  if ($('mf-close')) $('mf-close').onclick = () => openSrc(false)
 
   async function draw(src, { persist = false } = {}) {
     const my = ++busy
@@ -90,7 +100,7 @@ function boot() {
     const fallback = () => {
       let ok = false
       try { ta.focus(); ta.select(); ok = document.execCommand('copy') } catch (e) {}
-      if (!ok) { $('mf-src').open = true; ta.focus(); ta.select() }
+      if (!ok) { openSrc(true); ta.select() }
       toast(ok ? '已复制' : '请按 ⌘C / Ctrl+C 复制已选中的源码')
     }
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(() => toast('已复制'), fallback)
@@ -108,7 +118,7 @@ function boot() {
     if (S) { try { saved = await S.get(KEY) } catch (e) {} }
     if (typeof saved === 'string' && saved.trim() && saved !== original) {
       ta.value = saved
-      if (await draw(saved)) { $('mf-src').open = true; say(`已载入上次编辑的版本（点「${$('mf-rs').textContent}」回到原始源码）`); return }
+      if (await draw(saved)) { if (src.tagName === 'DETAILS') src.open = true; say(`已载入上次编辑的版本（点「${$('mf-rs').textContent}」回到原始源码）`); return }
     }
     ta.value = original
     draw(original)
