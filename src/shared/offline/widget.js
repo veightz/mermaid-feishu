@@ -11,11 +11,19 @@ const jsonScript = (o) => JSON.stringify(o).replace(/</g, '\\u003c')
 
 /**
  * @param {string} source  Mermaid flowchart 源码
- * @param {object} [opts]  { palette, bg }：palette 为 ChatGPT 风配色覆盖（与站点 elkPalette 相同），bg 为背景色
+ * @param {object} [opts]  { palette, bg, generic }：palette 为 ChatGPT 风配色覆盖（与站点 elkPalette 相同），bg 为背景色；
+ *   generic=true：通用「飞书 Mermaid 渲染插件」——源码面板默认展开、放在图上方，主流程是「粘贴 Mermaid → 重绘」
  */
+function srcPanel(generic) {
+  return `<details class="mf-src" id="mf-src"${generic ? ' open' : ''}><summary>${generic ? '粘贴 Mermaid 流程图，点「重绘」（⌘/Ctrl+Enter）' : '源码（可编辑，改完点「重绘」）'}</summary><textarea id="mf-ta" spellcheck="false" autocomplete="off"${generic ? ' placeholder="flowchart LR&#10;  A[开始] --&gt; B{判断}"' : ''}></textarea>
+<div class="mf-row"><button type="button" id="mf-go">重绘</button>${generic ? '<button type="button" id="mf-clr">清空</button>' : ''}<button type="button" id="mf-rs">${generic ? '还原示例' : '还原'}</button><span id="mf-msg"></span></div></details>
+`
+}
+
 export function buildOfflineWidget(source, opts = {}) {
   const palette = opts.palette || null
   const bg = opts.bg || (palette && palette.bg) || '#ffffff'
+  const generic = !!opts.generic
   const css = `html,body{margin:0;background:${bg}}body{font-family:${STACK}}[hidden]{display:none!important}
 .mf{box-sizing:border-box;max-width:820px;margin:0 auto;padding:16px 12px;position:relative}
 .mf-b{position:absolute;z-index:2;top:10px;font:12px/1.2 ${STACK};padding:5px 10px;border:1px solid rgba(51,112,255,.35);border-radius:6px;background:rgba(255,255,255,.82);color:#2b5cb8;cursor:pointer;backdrop-filter:blur(4px);box-shadow:0 1px 3px rgba(0,0,0,.06)}
@@ -32,20 +40,21 @@ export function buildOfflineWidget(source, opts = {}) {
 .mf-row button{font:13px ${STACK};padding:4px 14px;border:1px solid #d0d3d9;border-radius:6px;background:#fff;cursor:pointer}
 #mf-go{background:#10a37f;border-color:#10a37f;color:#fff}
 #mf-msg{font-size:12px;color:#8f959e}
+.mf-gen .mf-src{margin:34px 0 12px;border-color:#10a37f;background:#f3fbf8}
+.mf-gen .mf-src summary{color:#0b7a5f;font-weight:600}
+.mf-gen .mf-src textarea{min-height:150px}
 .mf-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:rgba(31,35,41,.92);color:#fff;padding:6px 14px;border-radius:8px;font-size:13px;z-index:9;pointer-events:none}
 @media print{.mf-b,.mf-warn,.mf-src,.mf-toast{display:none!important}}`
   const boot = `(function(){var st=document.getElementById('mf-st');function go(){try{var A=${JSON.stringify(ENGINE_ALPHABET)},T=[],i,j,v,b,s=document.getElementById('mf-eng').textContent.replace(/\\s/g,''),o=new Array(s.length/5*4),p=0;for(i=0;i<85;i++)T[A.charCodeAt(i)]=i;for(i=0;i<s.length;i+=5){v=0;for(j=0;j<5;j++)v=v*85+T[s.charCodeAt(i+j)];for(j=3;j>=0;j--){b=v%256;v=(v-b)/256;o[p+j]=b>127?b-256:b}p+=4}o.length=${ENGINE_LEN};eval(LZMA.decompress(o))}catch(e){st.textContent='离线排版引擎加载失败：'+(e&&e.message||e)}}setTimeout(go,20)})();`
   return `<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mermaid</title>
 <style>${css}</style></head><body>
-<div class="mf">
+<div class="mf${generic ? ' mf-gen' : ''}">
 <button type="button" class="mf-b" id="mf-flip" hidden title="切换走向并离线重新排版">LR / TB</button>
 <button type="button" class="mf-b" id="mf-copy" title="复制 Mermaid 源码">Copy Mermaid</button>
-<div class="mf-out" id="mf-out"><div class="mf-st" id="mf-st">正在离线排版…</div></div>
+${generic ? srcPanel(true) : ''}<div class="mf-out" id="mf-out"><div class="mf-st" id="mf-st">正在离线排版…</div></div>
 <div class="mf-warn" id="mf-warn" hidden></div>
-<details class="mf-src" id="mf-src"><summary>源码（可编辑，改完点「重绘」）</summary><textarea id="mf-ta" spellcheck="false" autocomplete="off"></textarea>
-<div class="mf-row"><button type="button" id="mf-go">重绘</button><button type="button" id="mf-rs">还原</button><span id="mf-msg"></span></div></details>
-</div>
+${generic ? '' : srcPanel(false)}</div>
 <script type="text/plain" id="mermaid-source">${escScript(source)}</script>
 <script type="application/json" id="mf-cfg">${jsonScript({ palette })}</script>
 <script>${LZMA_DECODER}</script>

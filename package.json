@@ -7,7 +7,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "node scripts/check-layout.mjs /tmp/mf-check --layouts",
-    "build:offline": "node scripts/build-offline-engine.mjs"
+    "build:offline": "node scripts/build-offline-engine.mjs",
+    "build:widget": "node scripts/build-widget.mjs"
   },
   "license": "MIT",
   "type": "module",

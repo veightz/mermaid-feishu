@@ -81,6 +81,7 @@ function boot() {
     draw(next, { persist: true })
   }
   $('mf-go').onclick = () => { say('排版中…'); draw(ta.value, { persist: true }) }
+  if ($('mf-clr')) $('mf-clr').onclick = () => { ta.value = ''; ta.focus(); say('粘贴 Mermaid 后点「重绘」') }
   $('mf-rs').onclick = () => { ta.value = original; draw(original, { persist: true }) }
   ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); $('mf-go').click() } })
 
@@ -107,7 +108,7 @@ function boot() {
     if (S) { try { saved = await S.get(KEY) } catch (e) {} }
     if (typeof saved === 'string' && saved.trim() && saved !== original) {
       ta.value = saved
-      if (await draw(saved)) { $('mf-src').open = true; say('已载入上次编辑的版本（点「还原」回到原始源码）'); return }
+      if (await draw(saved)) { $('mf-src').open = true; say(`已载入上次编辑的版本（点「${$('mf-rs').textContent}」回到原始源码）`); return }
     }
     ta.value = original
     draw(original)
