@@ -2,6 +2,7 @@
 // 依赖解压脚本先放好 window.MFElk = { ELK, Worker }（裁剪版 GWT ELK，只含 layered）。
 import { renderChatGPTGraph } from '../chatgpt-core.js'
 import { parseFlowchart } from './flow-parser.js'
+import { createSvgViewport } from './viewport.js'
 
 const $ = (id) => document.getElementById(id)
 const FEISHU_W = 820
@@ -38,6 +39,7 @@ function store() {
 function boot() {
   const out = $('mf-out'), warn = $('mf-warn'), ta = $('mf-ta'), msg = $('mf-msg'), flip = $('mf-flip')
   const cfg = JSON.parse($('mf-cfg').textContent || '{}')
+  const viewport = createSvgViewport(out, $('mf-reset-view'))
   let original = $('mermaid-source').textContent.replace(/<\\\/(script)/gi, '</$1').replace(/<\\!--/g, '<!--')
   const KEY = 'mf-src-' + hash(original)
   const S = cfg.embed ? null : store() // 嵌入模式：由外层（飞书 HTML 块）负责保存
@@ -65,6 +67,7 @@ function boot() {
       const w = +(/width="([\d.]+)"/.exec(svg) || [])[1] || FEISHU_W
       svg = svg.replace(/<svg\b[^>]*>/, (tag) => tag.replace(/\s(width|height|style)="[^"]*"/g, '').replace(/>$/, ` width="100%" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;max-width:${Math.min(w, FEISHU_W)}px;height:auto;margin:0 auto">`))
       out.innerHTML = svg
+      viewport.setSvg(out.querySelector('svg'))
       drawn = src
       flip.textContent = curDir(src) === 'LR' || curDir(src) === 'RL' ? 'LR → TB' : 'TB → LR'
       flip.hidden = false
