@@ -16,11 +16,11 @@ const els = {
   footSingle: $('foot-single'), footCompare: $('foot-compare'),
   copyPng: $('copy-png'), downloadPng: $('download-png'), copySvg: $('copy-svg'), copySrc: $('copy-src'), copyHtml: $('copy-html'),
 }
-const LS = { src: 'mf.source', theme: 'mf.theme', layout: 'mf.layout', scale: 'mf.scale', zoom: 'mf.zoom', compare: 'mf.compare', compareOrient: 'mf.compareOrient' }
+const LS = { src: 'mf.source', theme: 'mf.theme', layout: 'mf.layout', scale: 'mf.scale', zoom: 'mf.zoom', compare: 'mf.compare', compareOrient: 'mf.compareOrient', previewMode: 'mf.previewMode' }
 
 const SCALE_STEPS = [2, 3] // 与 #scale 选项一致
 const state = {
-  svg: '', renderer: '', theme: DEFAULT_THEME, layout: 'elk', scale: 2, zoom: 1, ok: false, compare: false, compareOrient: 'row',
+  svg: '', renderer: '', theme: DEFAULT_THEME, layout: 'elk', scale: 2, zoom: 1, ok: false, compare: false, compareOrient: 'row', previewMode: 'svg',
   // compare 两侧：{ svg, flat, renderer, note }
   panes: { default: null, elk: null },
 }
@@ -110,10 +110,10 @@ function svgNaturalWidth(svg) {
 
 // 100% = 适应宽度（不超过固有宽度、820px 和预览区宽度）；之后按缩放倍数直接放大像素宽度
 function sizeStageSvg(stage) {
-  const svg = stage.querySelector(':scope > svg')
+  const svg = stage.querySelector(':scope > svg, :scope > img')
   if (!svg) return
   const wrap = stage.closest('.stage-wrap')
-  if (!svg.dataset.natW) svg.dataset.natW = String(svgNaturalWidth(svg))
+  if (!svg.dataset.natW) svg.dataset.natW = String(svg.tagName === 'IMG' ? STAGE_BASE_W : svgNaturalWidth(svg))
   const nat = Number(svg.dataset.natW)
   let avail = STAGE_BASE_W
   if (wrap && wrap.clientWidth > 0) {
@@ -140,7 +140,7 @@ function setZoom(z, anchor, { round = true, persist = true } = {}) {
   if (z === state.zoom) return
   let rel = null
   if (anchor && anchor.wrap) {
-    const svg = anchor.wrap.querySelector('.stage-zoom > svg')
+    const svg = anchor.wrap.querySelector('.stage-zoom > svg, .stage-zoom > img')
     if (svg) {
       const r = svg.getBoundingClientRect()
       if (r.width > 0 && r.height > 0) rel = { svg, fx: (anchor.clientX - r.left) / r.width, fy: (anchor.clientY - r.top) / r.height }
@@ -416,6 +416,7 @@ async function update() {
       document.body.dataset.renderer = res.renderer
       document.body.dataset.status = 'ok'
       delete document.body.dataset.compare
+      refreshPreviewMode()
     }
   } catch (e) {
     if (my !== renderSeq) return
@@ -555,6 +556,7 @@ els.compareOrient.addEventListener('click', (e) => {
   if (!btn) return
   setCompareOrient(btn.dataset.orient)
 })
+els.scale.addEventListener('change', () => { queueMicrotask(() => { if (state.previewMode === 'png') refreshPreviewMode() }) })
 els.scale.addEventListener('change', () => {
   if (state.compare) scaleTouchedDuringCompare = true
   applyScale(Number(els.scale.value))
@@ -584,19 +586,23 @@ function flat(which) {
 async function htmlWidget() {
   const bg = THEMES[state.theme].bg
   const primary = state.compare ? flat('elk') : flat()
-  const info = detectFlowHeader(els.source.value)
-  if (!info) return buildHtmlWidget(primary, bg)
-  // 流程图：再渲另一走向，HTML 里用纯 CSS 切换（无需 script）
+  const src = els.source.value
+  const info = detectFlowHeader(src)
+  if (!info) return buildHtmlWidget(primary, bg, null, { source: src })
+  // 流程图：再渲另一走向，HTML 里用纯 CSS 切换（无需 script）；源码一并嵌入供 Copy Mermaid
   const cur = info.dir === 'TD' ? 'TB' : info.dir
   const other = isHorizontalDir(cur) ? 'TB' : 'LR'
-  const otherCode = setFlowDirection(els.source.value, other)
-  if (!otherCode || otherCode === els.source.value) return buildHtmlWidget(primary, bg)
+  const otherCode = setFlowDirection(src, other)
+  if (!otherCode || otherCode === src) return buildHtmlWidget(primary, bg, null, { source: src })
   try {
     const res = await render(otherCode, state.theme, state.compare ? 'elk' : state.layout)
     const second = cleanSvg(res.svg, bg)
-    return buildHtmlWidget(primary, bg, second, { primaryDir: cur, secondaryDir: other })
+    return buildHtmlWidget(primary, bg, second, {
+      primaryDir: cur, secondaryDir: other,
+      source: src, secondarySource: otherCode,
+    })
   } catch {
-    return buildHtmlWidget(primary, bg)
+    return buildHtmlWidget(primary, bg, null, { source: src })
   }
 }
 function makePng(which) {
@@ -679,3 +685,88 @@ els.compareWrap.addEventListener('click', async (e) => {
 window.__mf = { state, render, makePng, pngSize, EXAMPLES, update, flat, htmlWidget }
 
 update()
+
+
+// ---------- 预览模式：PNG / SVG / HTML（只影响屏幕预览，不改导出 / API）----------
+// 对比模式下禁用（固定 SVG）：两栏各自渲染 HTML/PNG 代价大，且 HTML 小组件只按 ELK 一侧导出
+const previewEls = {
+  seg: $('preview-mode'), pngWrap: $('stage-png-wrap'), png: $('stage-png'),
+  htmlWrap: $('stage-html-wrap'), iframe: $('stage-html'),
+}
+let previewSeq = 0
+let pngUrl = null
+{
+  const m = load(LS.previewMode)
+  if (m === 'png' || m === 'svg' || m === 'html') state.previewMode = m
+}
+function effectivePreviewMode() { return state.compare ? 'svg' : state.previewMode }
+function syncPreviewModeChrome() {
+  const mode = effectivePreviewMode()
+  for (const btn of previewEls.seg.querySelectorAll('.seg-btn')) {
+    const on = btn.dataset.mode === mode
+    btn.classList.toggle('active', on)
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false')
+    btn.disabled = state.compare && btn.dataset.mode !== 'svg'
+  }
+  previewEls.seg.title = state.compare ? '对比模式下预览固定为 SVG' : '预览显示：SVG（实时）/ PNG（导出效果）/ HTML（小组件效果）'
+  document.body.dataset.previewMode = mode
+  if (state.compare) { previewEls.pngWrap.hidden = true; previewEls.htmlWrap.hidden = true; return }
+  els.stageSingle.hidden = mode !== 'svg'
+  previewEls.pngWrap.hidden = mode !== 'png'
+  previewEls.htmlWrap.hidden = mode !== 'html'
+}
+// 给 srcdoc 末尾补一段只用于预览的高度上报脚本（导出的 HTML 不含它）
+const HEIGHT_PING = `<script>(function(){function s(){parent.postMessage({mfWidgetHeight:Math.ceil(document.documentElement.scrollHeight)},'*')}addEventListener('load',s);new ResizeObserver(s).observe(document.documentElement);document.addEventListener('click',function(){setTimeout(s,30)});})();<\/script>`
+window.addEventListener('message', (e) => {
+  if (e.source !== previewEls.iframe.contentWindow) return
+  const h = e.data && e.data.mfWidgetHeight
+  if (Number.isFinite(h) && h > 0) previewEls.iframe.style.height = `${Math.min(h, 20000)}px`
+})
+async function refreshPreviewMode() {
+  syncPreviewModeChrome()
+  const mode = effectivePreviewMode()
+  const my = ++previewSeq
+  if (mode === 'svg' || !state.ok || !state.svg) return
+  if (mode === 'png') {
+    try {
+      const blob = await makePng(null)
+      if (my !== previewSeq) return
+      if (pngUrl) URL.revokeObjectURL(pngUrl)
+      pngUrl = URL.createObjectURL(blob)
+      const img = new Image()
+      img.alt = '导出 PNG 预览'
+      // CSS 尺寸 = svg 尺寸（PNG 像素 ÷ 实际倍率），这样和 SVG 预览一样大
+      const s = pngSize(flat(), state.scale)
+      img.dataset.natW = String(Math.max(1, s.width / s.scale))
+      img.src = pngUrl
+      await img.decode().catch(() => {})
+      if (my !== previewSeq) return
+      previewEls.png.replaceChildren(img)
+      sizeStageSvg(previewEls.png)
+      previewEls.pngWrap.title = `实际导出 PNG：${s.width}×${s.height}px`
+    } catch (e) {
+      previewEls.png.innerHTML = `<div class="stage-msg">PNG 生成失败：${String(e.message || e).replace(/</g, '&lt;')}</div>`
+    }
+    return
+  }
+  if (mode === 'html') {
+    try {
+      const html = await htmlWidget()
+      if (my !== previewSeq) return
+      previewEls.iframe.style.height = ''
+      previewEls.iframe.srcdoc = html.includes('</body>') ? html.replace(/<\/body>(?![\s\S]*<\/body>)/, HEIGHT_PING + '</body>') : html + HEIGHT_PING
+    } catch (e) {
+      previewEls.iframe.srcdoc = `<p style="font:13px sans-serif;color:#d83931;padding:16px">HTML 生成失败：${String(e.message || e).replace(/</g, '&lt;')}</p>`
+    }
+  }
+}
+previewEls.seg.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-mode]')
+  if (!btn || btn.disabled || state.compare) return
+  state.previewMode = btn.dataset.mode
+  store(LS.previewMode, state.previewMode)
+  refreshPreviewMode()
+})
+els.compare.addEventListener('change', () => syncPreviewModeChrome())
+syncPreviewModeChrome()
+window.__mf.refreshPreviewMode = refreshPreviewMode

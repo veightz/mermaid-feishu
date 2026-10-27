@@ -50,7 +50,11 @@
     </section>
     <section class="pane preview-pane">
       <div class="pane-head">
-        <span>预览 <span id="renderer" class="badge"></span> <span id="size" class="size"></span></span>
+        <span>预览 <span class="seg" id="preview-mode" title="预览显示：SVG（实时）/ PNG（导出效果）/ HTML（小组件效果）">
+            <button type="button" data-mode="png" class="seg-btn" aria-pressed="false">PNG</button>
+            <button type="button" data-mode="svg" class="seg-btn active" aria-pressed="true">SVG</button>
+            <button type="button" data-mode="html" class="seg-btn" aria-pressed="false">HTML</button>
+          </span> <span id="renderer" class="badge"></span> <span id="size" class="size"></span></span>
         <span class="actions">
           <button id="copy-png" class="primary" title="复制 PNG 到剪贴板，直接粘贴进飞书">复制 PNG</button>
           <button id="download-png" title="剪贴板不可用时下载 PNG">下载 PNG</button>
@@ -62,6 +66,8 @@
       <div id="error" class="error" hidden></div>
       <div id="wide-hint" class="wide-hint" role="status" hidden></div>
       <div class="stage-wrap" id="stage-single"><div class="stage-zoom-outer"><div id="stage" class="stage stage-zoom"></div></div></div>
+      <div class="stage-wrap" id="stage-png-wrap" hidden><div class="stage-zoom-outer"><div id="stage-png" class="stage stage-zoom"></div></div></div>
+      <div class="stage-wrap stage-html-wrap" id="stage-html-wrap" hidden><iframe id="stage-html" title="HTML 小组件预览" sandbox="allow-scripts allow-modals" allow="clipboard-write"></iframe></div>
       <div class="compare-wrap" id="compare-wrap" hidden>
         <div class="compare-col" data-layout="default">
           <div class="compare-head">

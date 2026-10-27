@@ -8,6 +8,7 @@ import {
   themeList, isBMSupported, diagramType, renderBM, cleanSvg, buildHtmlWidget, svgDims, byteLength,
   LAYOUTS, parseLayout, resolveLayout, elkPalette,
   parseDirection, applyDirection,
+  detectFlowHeader, setFlowDirection, isHorizontalDir,
 } from '../../src/shared/core.js'
 import { isFlowchart, renderChatGPTFlowchart } from '../../src/shared/chatgpt.js'
 
@@ -95,7 +96,29 @@ async function handleRender(request, url) {
     return fail(400, 'syntax_error', `Mermaid 语法错误 / Mermaid syntax error: ${(e && e.message) || e}`)
   }
   const { width, height } = svgDims(svg)
-  const data = format === 'html' ? buildHtmlWidget(svg, THEMES[theme].bg) : svg
+  let data = svg
+  if (format === 'html') {
+    const bg = THEMES[theme].bg
+    const info = detectFlowHeader(code)
+    let second = null, opts = { source: code }
+    if (info) {
+      const cur = info.dir === 'TD' ? 'TB' : info.dir
+      const other = isHorizontalDir(cur) ? 'TB' : 'LR'
+      const otherCode = setFlowDirection(code, other)
+      if (otherCode && otherCode !== code) {
+        try {
+          let otherSvg = null
+          if (layout === 'elk' && isFlowchart(otherCode)) {
+            try { otherSvg = cleanSvg(await renderChatGPTFlowchart(otherCode, elkPalette(theme)), bg) } catch { otherSvg = null }
+          }
+          if (!otherSvg) otherSvg = cleanSvg(renderBM(otherCode, theme), bg)
+          second = otherSvg
+          opts = { source: code, secondarySource: otherCode, primaryDir: cur, secondaryDir: other }
+        } catch { /* 另一走向渲失败就单图 */ }
+      }
+    }
+    data = buildHtmlWidget(svg, bg, second, opts)
+  }
   const usedLayout = renderer === 'chatgpt-elk' ? 'elk' : 'default'
   const meta = {
     'X-Renderer': renderer, 'X-Theme': theme, 'X-Layout': usedLayout,

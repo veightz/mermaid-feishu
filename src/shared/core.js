@@ -577,15 +577,139 @@ function inlineSvgForWidget(clean, bg) {
 }
 
 /**
- * 飞书 HTML 小组件：自包含 HTML，内联 SVG，无外部脚本/字体，居中、按 820px 自适应。
- * 若传入 second（另一走向的 SVG）与 dirs={ primary:'TB'|'LR', secondary:... }，
- * 用纯 CSS radio 切换两张图（不依赖 script，飞书若剥脚本仍可用）。
+ * 飞书 HTML 小组件：自包含 HTML，内联 SVG，无外部字体，居中、按 820px 自适应。
+ * opts:
+ *   primaryDir / secondaryDir — 流程图走向
+ *   source / secondarySource — Mermaid 源码（嵌入 <script type="text/plain">，供「Copy Mermaid」）
+ * 若传入 second（另一走向 SVG）：左上角浮层「LR / TB」纯 CSS 切换两张图（飞书剥脚本仍可用）；
+ * 右上角浮层「Copy Mermaid」复制当前可见走向的源码（有脚本时写剪贴板；失败或无脚本时弹窗/details 手选复制）。
+ * 浮层按钮 @media print 隐藏。
  */
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+/** <script type="text/plain"> 内容仍会被 HTML 解析器找 </script>，需拆开 */
+function escapeScriptPlain(s) {
+  return String(s).replace(/<\/(script)/gi, '<\\/$1')
+}
+
 export function buildHtmlWidget(clean, bg, second = null, opts = {}) {
   const primaryDir = (opts.primaryDir || 'TB').toUpperCase()
   const secondaryDir = (opts.secondaryDir || (primaryDir === 'LR' || primaryDir === 'RL' ? 'TB' : 'LR')).toUpperCase()
+  const source = opts.source != null ? String(opts.source) : ''
+  const secondarySource = opts.secondarySource != null ? String(opts.secondarySource) : source
   const primary = inlineSvgForWidget(clean, bg)
-  if (!second) {
+  const hasDual = !!second
+  const secondary = hasDual ? inlineSvgForWidget(second, bg) : ''
+
+  const copyBtn = `<button type="button" class="mf-btn mf-copy" id="mf-copy" title="复制当前可见图的 Mermaid 源码">Copy Mermaid</button>`
+  // 左上角：一个控件，点击在 LR↔TB 间翻转（纯 CSS radio + 两个互斥 label）
+  const flipBtns = hasDual ? `<label class="mf-btn mf-flip" for="mf-d-b" title="切换为 ${secondaryDir}">LR / TB</label>
+<label class="mf-btn mf-flip" for="mf-d-a" title="切换为 ${primaryDir}">LR / TB</label>` : ''
+
+  const srcScripts = source
+    ? (hasDual
+      ? `<script type="text/plain" id="mermaid-source-a">${escapeScriptPlain(source)}</script>
+<script type="text/plain" id="mermaid-source-b">${escapeScriptPlain(secondarySource)}</script>`
+      : `<script type="text/plain" id="mermaid-source">${escapeScriptPlain(source)}</script>`)
+    : ''
+
+  const fallbackDetails = source
+    ? `<noscript>
+<details class="mf-fallback">
+<summary>选中复制 Mermaid</summary>
+<textarea readonly rows="8">${escapeHtml(source)}</textarea>
+</details>
+</noscript>`
+    : ''
+
+  const dialog = source
+    ? `<dialog class="mf-dlg" id="mf-copy-dlg">
+<form method="dialog" class="mf-dlg-body">
+<p class="mf-dlg-title">选中下方文字后复制</p>
+<textarea id="mf-copy-ta" readonly rows="10"></textarea>
+<menu><button value="close" type="submit">关闭</button></menu>
+</form>
+</dialog>`
+    : ''
+
+  // 剪贴板脚本：优先 clipboard API，失败则填 dialog 手选；双栏时按当前 radio 取对应源码
+  const copyScript = source
+    ? `<script>
+(function(){
+  var btn=document.getElementById('mf-copy');
+  if(!btn)return;
+  function un(t){return t.replace(/<\\\\\\\/(script)/gi,'<\/$1');}
+  function src(){
+    var a=document.getElementById('mermaid-source-a');
+    var b=document.getElementById('mermaid-source-b');
+    var one=document.getElementById('mermaid-source');
+    if(a&&b){
+      var rb=document.getElementById('mf-d-b');
+      return un((rb&&rb.checked?b:a).textContent);
+    }
+    return one?un(one.textContent):'';
+  }
+  function toast(ok){
+    var t=document.createElement('div');
+    t.className='mf-toast';
+    t.textContent=ok?'已复制':'复制失败，请手选';
+    document.body.appendChild(t);
+    setTimeout(function(){t.remove()},1600);
+  }
+  function showDlg(text){
+    var d=document.getElementById('mf-copy-dlg');
+    var ta=document.getElementById('mf-copy-ta');
+    if(!d||!ta)return;
+    ta.value=text;
+    if(d.showModal)d.showModal(); else d.setAttribute('open','');
+    try{ta.focus();ta.select();}catch(e){}
+  }
+  function fallbackCopy(text){
+    try{
+      var ta=document.createElement('textarea');
+      ta.value=text;ta.setAttribute('readonly','');
+      ta.style.cssText='position:fixed;left:-9999px;top:0';
+      document.body.appendChild(ta);ta.select();
+      var ok=document.execCommand('copy');
+      document.body.removeChild(ta);
+      if(ok){toast(true);return;}
+    }catch(e){}
+    showDlg(text);toast(false);
+  }
+  btn.addEventListener('click',function(){
+    var text=src();
+    if(!text){showDlg('');return;}
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){toast(true);},function(){fallbackCopy(text);});
+    }else fallbackCopy(text);
+  });
+})();
+</script>`
+    : ''
+
+  const cssCommon = `
+html,body{margin:0;padding:0;background:${bg};}
+body{font-family:${CJK_STACK};}
+.mf-wrap{box-sizing:border-box;max-width:820px;margin:0 auto;padding:16px 12px;position:relative;}
+.mf-btn{position:absolute;z-index:2;top:10px;font:12px/1.2 ${CJK_STACK};padding:5px 10px;border:1px solid rgba(51,112,255,.35);border-radius:6px;background:rgba(255,255,255,.82);color:#2b5cb8;cursor:pointer;user-select:none;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);box-shadow:0 1px 3px rgba(0,0,0,.06);}
+.mf-btn:hover{background:rgba(240,244,255,.95);border-color:#3370ff;}
+.mf-flip{left:10px;display:none;}
+.mf-copy{right:10px;}
+.mf-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:rgba(31,35,41,.92);color:#fff;padding:6px 14px;border-radius:8px;font-size:13px;z-index:9;pointer-events:none;}
+.mf-dlg{border:1px solid #e5e6eb;border-radius:10px;padding:0;max-width:min(560px,92vw);width:92vw;box-shadow:0 8px 28px rgba(0,0,0,.18);}
+.mf-dlg::backdrop{background:rgba(0,0,0,.35);}
+.mf-dlg-body{margin:0;padding:14px 16px 12px;display:flex;flex-direction:column;gap:8px;}
+.mf-dlg-title{margin:0;font-size:14px;font-weight:600;color:#1f2329;}
+.mf-dlg textarea{width:100%;box-sizing:border-box;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;border:1px solid #e5e6eb;border-radius:6px;padding:8px;resize:vertical;min-height:140px;background:#fafbfc;}
+.mf-dlg menu{margin:0;padding:0;display:flex;justify-content:flex-end;}
+.mf-dlg menu button{font:13px ${CJK_STACK};padding:5px 14px;border:1px solid #e5e6eb;border-radius:6px;background:#fff;cursor:pointer;}
+.mf-fallback{margin:12px;font-size:13px;color:#646a73;}
+.mf-fallback textarea{width:100%;box-sizing:border-box;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;margin-top:6px;}
+@media print{.mf-btn,.mf-toast,.mf-dlg,.mf-fallback{display:none!important;}}
+`.trim()
+
+  if (!hasDual) {
     return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -593,23 +717,38 @@ export function buildHtmlWidget(clean, bg, second = null, opts = {}) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mermaid</title>
 <style>
-html,body{margin:0;padding:0;background:${bg};}
-body{font-family:${CJK_STACK};}
-.mf-wrap{box-sizing:border-box;max-width:820px;margin:0 auto;padding:16px 12px;display:flex;justify-content:center;}
+${cssCommon}
+.mf-wrap{display:flex;justify-content:center;}
 </style>
 </head>
 <body>
+${srcScripts}
 <div class="mf-wrap">
+${copyBtn}
 ${primary}
 </div>
+${dialog}
+${fallbackDetails}
+${copyScript}
 </body>
 </html>
 `
   }
-  const secondary = inlineSvgForWidget(second, bg)
-  const pLabel = (primaryDir === 'LR' || primaryDir === 'RL') ? '左右 LR' : '上下 TB'
-  const sLabel = (secondaryDir === 'LR' || secondaryDir === 'RL') ? '左右 LR' : '上下 TB'
-  // 无脚本：radio + 兄弟选择器切换显示（飞书 HTML 小组件通常保留 style / form 控件）
+
+  // 双栏：radio 控制显示哪张图 + 哪个 flip 按钮可见（当前为 A 时显示「点我切到 B」的 label）
+  const cssDual = `
+.mf-wrap input[name="mf-dir"]{position:absolute;opacity:0;pointer-events:none;width:0;height:0;}
+.mf-pane{display:flex;justify-content:center;}
+.mf-pane-b{display:none;}
+#mf-d-a:checked ~ .mf-flip[for="mf-d-b"]{display:inline-flex;align-items:center;}
+#mf-d-b:checked ~ .mf-flip[for="mf-d-a"]{display:inline-flex;align-items:center;}
+#mf-d-a:checked ~ .mf-pane-a{display:flex;}
+#mf-d-a:checked ~ .mf-pane-b{display:none;}
+#mf-d-b:checked ~ .mf-pane-a{display:none;}
+#mf-d-b:checked ~ .mf-pane-b{display:flex;}
+@media print{.mf-flip{display:none!important;}}
+`.trim()
+
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -617,32 +756,23 @@ ${primary}
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mermaid</title>
 <style>
-html,body{margin:0;padding:0;background:${bg};}
-body{font-family:${CJK_STACK};}
-.mf-wrap{box-sizing:border-box;max-width:820px;margin:0 auto;padding:12px;}
-.mf-dir{display:flex;gap:8px;justify-content:center;margin:0 0 10px;flex-wrap:wrap;}
-.mf-dir input{position:absolute;opacity:0;pointer-events:none;}
-.mf-dir label{font-size:13px;padding:4px 12px;border:1px solid #c9d8ff;border-radius:14px;background:#f0f4ff;color:#2b5cb8;cursor:pointer;user-select:none;}
-.mf-pane{display:flex;justify-content:center;}
-.mf-pane-b{display:none;}
-#mf-d-a:checked ~ .mf-dir label[for="mf-d-a"],#mf-d-b:checked ~ .mf-dir label[for="mf-d-b"]{background:#3370ff;border-color:#3370ff;color:#fff;}
-#mf-d-a:checked ~ .mf-pane-a{display:flex;}
-#mf-d-a:checked ~ .mf-pane-b{display:none;}
-#mf-d-b:checked ~ .mf-pane-a{display:none;}
-#mf-d-b:checked ~ .mf-pane-b{display:flex;}
+${cssCommon}
+${cssDual}
 </style>
 </head>
 <body>
+${srcScripts}
 <div class="mf-wrap">
 <input type="radio" name="mf-dir" id="mf-d-a" checked>
 <input type="radio" name="mf-dir" id="mf-d-b">
-<div class="mf-dir">
-  <label for="mf-d-a">${pLabel}</label>
-  <label for="mf-d-b">${sLabel}</label>
-</div>
+${flipBtns}
+${copyBtn}
 <div class="mf-pane mf-pane-a">${primary}</div>
 <div class="mf-pane mf-pane-b">${secondary}</div>
 </div>
+${dialog}
+${fallbackDetails}
+${copyScript}
 </body>
 </html>
 `

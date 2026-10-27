@@ -46,7 +46,7 @@ textarea { flex: 1; border: 0; outline: none; resize: none; padding: 12px; font-
   overflow: hidden; border-top: 0;
 }
 /* display:grid 会压过原生 [hidden]{display:none}，必须显式盖回去 */
-.compare-wrap[hidden], #stage-single[hidden], .foot[hidden], #compare-orient[hidden], #flow-dir[hidden] {
+.compare-wrap[hidden], #stage-single[hidden], #stage-png-wrap[hidden], #stage-html-wrap[hidden], #preview-mode[hidden], .foot[hidden], #compare-orient[hidden], #flow-dir[hidden] {
   display: none !important;
 }
 .compare-col {
@@ -113,3 +113,12 @@ body.compare-col .compare-col:first-child { border-top: 0; }
 .stage-wrap.panning { cursor: grabbing; user-select: none; }
 .stage-wrap.panning * { cursor: grabbing !important; }
 .zoom-reset { padding: 3px 8px; font-size: 12px; }
+
+/* 预览模式 PNG / SVG / HTML */
+#preview-mode { vertical-align: middle; margin-left: 4px; }
+#preview-mode .seg-btn { padding: 2px 8px; font-size: 11px; }
+#preview-mode .seg-btn:disabled { opacity: .45; cursor: not-allowed; }
+.stage.stage-zoom > img { display: block; max-width: none; flex: none; height: auto; image-rendering: auto; }
+.stage-html-wrap { padding: 0; background: none; }
+.stage-html-wrap iframe { display: block; width: 100%; min-height: 240px; border: 0; background: transparent; }
+.stage-msg { color: var(--muted); font-size: 13px; padding: 24px; text-align: center; }
