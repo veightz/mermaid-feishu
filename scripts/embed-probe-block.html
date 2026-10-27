@@ -1,0 +1,11 @@
+<p id=s style=color:#888>iframe 加载中…</p><iframe id=f src="https://feishu-probe.mermaid-feishu.pages.dev/embed" allow=clipboard-write style="width:100%;height:420px;border:0"></iframe><script type=text/plain id=m>flowchart LR
+A([开始]) --> B{判断}
+B -->|是| C[处理] --> D([结束])
+B -->|否| D</script><script>
+var K='mf-src',M=window.magic&&magic.store,ok=0,t=function(x){s.textContent=x};
+addEventListener('message',async function(e){if(e.source!=f.contentWindow)return;var d=e.data||{},v;
+if(d.type=='mf-ready'){ok=1;t('iframe 已连接 ✓');try{v=await(M?M.get(K):localStorage.getItem(K))}catch(x){}f.contentWindow.postMessage({type:'mf-src',src:v||m.textContent},'*')}
+if(d.type=='mf-height')f.style.height=d.h+'px';
+if(d.type=='mf-save'){try{await(M?M.set(K,d.src):localStorage.setItem(K,d.src));t('iframe 已连接 ✓ · 已保存')}catch(x){t('iframe 已连接 ✓ · 保存失败')}}});
+setTimeout(function(){ok||t('iframe 未加载（可能被禁止或网络不通）')},8e3)
+</script>

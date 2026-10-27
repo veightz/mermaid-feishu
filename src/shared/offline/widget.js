@@ -12,13 +12,14 @@ const jsonScript = (o) => JSON.stringify(o).replace(/</g, '\\u003c')
 /**
  * @param {string} source  Mermaid flowchart 源码
  * @param {object} [opts]  { palette, bg, generic }：palette 为 ChatGPT 风配色覆盖（与站点 elkPalette 相同），bg 为背景色；
+ *   embed=true：/embed 页（被飞书 HTML 块用 iframe 引用），源码经 postMessage 收发，由外层保存；隐含 generic
  *   generic=true：通用「飞书 Mermaid 渲染插件」——源码面板平时收起（工具栏「编辑源码」按钮，在 Copy Mermaid 左边），展开后在图上方，主流程是「粘贴 Mermaid → 重绘」
  */
-function srcPanel(generic) {
+function srcPanel(generic, embed = false) {
   if (generic) {
     // 通用版：平时收起，只在顶部工具栏留「编辑源码」按钮；展开后整宽面板在工具栏下方
     return `<div class="mf-src" id="mf-src" hidden><div class="mf-hd"><b>粘贴 Mermaid 流程图，点「重绘」（⌘/Ctrl+Enter）</b><button type="button" id="mf-close">收起</button></div><textarea id="mf-ta" spellcheck="false" autocomplete="off" placeholder="flowchart LR&#10;  A[开始] --&gt; B{判断}"></textarea>
-<div class="mf-row"><button type="button" id="mf-go">重绘</button><button type="button" id="mf-clr">清空</button><button type="button" id="mf-rs">还原示例</button><span id="mf-msg"></span></div></div>
+<div class="mf-row"><button type="button" id="mf-go">重绘</button><button type="button" id="mf-clr">清空</button><button type="button" id="mf-rs">${embed ? '还原' : '还原示例'}</button><span id="mf-msg"></span></div></div>
 `
   }
   return `<details class="mf-src" id="mf-src"><summary>源码（可编辑，改完点「重绘」）</summary><textarea id="mf-ta" spellcheck="false" autocomplete="off"></textarea>
@@ -29,7 +30,8 @@ function srcPanel(generic) {
 export function buildOfflineWidget(source, opts = {}) {
   const palette = opts.palette || null
   const bg = opts.bg || (palette && palette.bg) || '#ffffff'
-  const generic = !!opts.generic
+  const embed = !!opts.embed
+  const generic = !!opts.generic || embed
   const css = `html,body{margin:0;background:${bg}}body{font-family:${STACK}}[hidden]{display:none!important}
 .mf{box-sizing:border-box;max-width:820px;margin:0 auto;padding:16px 12px;position:relative}
 .mf-b{position:absolute;z-index:2;top:10px;font:12px/1.2 ${STACK};padding:5px 10px;border:1px solid rgba(51,112,255,.35);border-radius:6px;background:rgba(255,255,255,.82);color:#2b5cb8;cursor:pointer;backdrop-filter:blur(4px);box-shadow:0 1px 3px rgba(0,0,0,.06)}
@@ -60,11 +62,11 @@ export function buildOfflineWidget(source, opts = {}) {
 <div class="mf${generic ? ' mf-gen' : ''}">
 <button type="button" class="mf-b" id="mf-flip" hidden title="切换走向并离线重新排版">LR / TB</button>
 ${generic ? '<div class="mf-tr"><button type="button" class="mf-b" id="mf-edit" title="展开源码：粘贴 Mermaid 后重绘">编辑源码</button>' : ''}<button type="button" class="mf-b" id="mf-copy" title="复制 Mermaid 源码">Copy Mermaid</button>${generic ? '</div>' : ''}
-${generic ? srcPanel(true) : ''}<div class="mf-out" id="mf-out"><div class="mf-st" id="mf-st">正在离线排版…</div></div>
+${generic ? srcPanel(true, embed) : ''}<div class="mf-out" id="mf-out"><div class="mf-st" id="mf-st">正在离线排版…</div></div>
 <div class="mf-warn" id="mf-warn" hidden></div>
 ${generic ? '' : srcPanel(false)}</div>
 <script type="text/plain" id="mermaid-source">${escScript(source)}</script>
-<script type="application/json" id="mf-cfg">${jsonScript({ palette })}</script>
+<script type="application/json" id="mf-cfg">${jsonScript(embed ? { palette, embed: true } : { palette })}</script>
 <script>${LZMA_DECODER}</script>
 <script type="application/octet-stream" id="mf-eng">${ENGINE_B85}</script>
 <script>${boot}</script>

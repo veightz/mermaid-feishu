@@ -38,9 +38,9 @@ function store() {
 function boot() {
   const out = $('mf-out'), warn = $('mf-warn'), ta = $('mf-ta'), msg = $('mf-msg'), flip = $('mf-flip')
   const cfg = JSON.parse($('mf-cfg').textContent || '{}')
-  const original = $('mermaid-source').textContent.replace(/<\\\/(script)/gi, '</$1').replace(/<\\!--/g, '<!--')
+  let original = $('mermaid-source').textContent.replace(/<\\\/(script)/gi, '</$1').replace(/<\\!--/g, '<!--')
   const KEY = 'mf-src-' + hash(original)
-  const S = store()
+  const S = cfg.embed ? null : store() // 嵌入模式：由外层（飞书 HTML 块）负责保存
   const elk = new window.MFElk.ELK({ algorithms: ['layered'], workerFactory: () => new window.MFElk.Worker() })
   let busy = 0, drawn = ''
   const say = (t) => { msg.textContent = t || '' }
@@ -69,7 +69,10 @@ function boot() {
       flip.textContent = curDir(src) === 'LR' || curDir(src) === 'RL' ? 'LR → TB' : 'TB → LR'
       flip.hidden = false
       showWarn(res.warnings)
-      if (persist && S) {
+      if (persist && cfg.embed) {
+        if (window.parent !== window) window.parent.postMessage({ type: 'mf-save', src }, '*')
+        say(src === original ? '已还原' : '已重绘 · 已交给外层保存')
+      } else if (persist && S) {
         try { await S.set(KEY, src === original ? '' : src); say(src === original ? '已还原' : `已重绘 · 已保存到${S.kind}`) } catch (e) { say('已重绘（保存失败，关闭后会还原）') }
       } else if (persist) say('已重绘（此环境无法保存，关闭后会还原）')
       return true
@@ -113,6 +116,7 @@ function boot() {
     setTimeout(() => d.remove(), 1800)
   }
 
+  if (cfg.embed) return embedStart()
   ;(async () => {
     let saved = null
     if (S) { try { saved = await S.get(KEY) } catch (e) {} }
@@ -123,6 +127,33 @@ function boot() {
     ta.value = original
     draw(original)
   })()
+
+  // 嵌入模式（/embed）：外层用 postMessage {type:'mf-src', src} 传源码（或 #src=base64url），
+  // 本页回 {type:'mf-ready'} / {type:'mf-save', src} / {type:'mf-height', h}；1.5s 内没收到源码就画内置示例
+  function embedStart() {
+    const P = window.parent !== window ? window.parent : null
+    let got = false
+    const accept = (s) => { got = true; original = s; ta.value = s; draw(s) }
+    addEventListener('message', (e) => {
+      if (P && e.source !== P) return
+      const d = e.data
+      if (d && d.type === 'mf-src' && typeof d.src === 'string' && d.src.trim()) accept(d.src)
+    })
+    const m = /[#&]src=([^&]*)/.exec(location.hash)
+    if (m) {
+      try {
+        const b = atob(decodeURIComponent(m[1]).replace(/-/g, '+').replace(/_/g, '/'))
+        const s = new TextDecoder().decode(Uint8Array.from(b, (c) => c.charCodeAt(0)))
+        if (s.trim()) accept(s)
+      } catch (e) { showWarn([], '#src= 解码失败（需 URL 安全 base64 的 UTF-8 文本）') }
+    }
+    const mf = document.querySelector('.mf')
+    let last = 0
+    const ping = () => { const h = Math.ceil(mf.getBoundingClientRect().height); if (P && h !== last) { last = h; P.postMessage({ type: 'mf-height', h }, '*') } }
+    new ResizeObserver(ping).observe(mf)
+    if (P) P.postMessage({ type: 'mf-ready' }, '*')
+    setTimeout(() => { if (!got) { ta.value = original; draw(original) } }, 1500)
+  }
 }
 
 window.MFOffline = { boot, parseFlowchart }
