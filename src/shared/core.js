@@ -577,13 +577,13 @@ function inlineSvgForWidget(clean, bg) {
 }
 
 /**
- * 飞书 HTML 小组件：自包含 HTML，内联 SVG，无外部字体，居中、按 820px 自适应。
+ * 飞书 HTML 小组件：自包含离线 HTML，内联 SVG，无外部字体 / 无网络请求，居中、按 820px 自适应。
  * opts:
  *   primaryDir / secondaryDir — 流程图走向
- *   source / secondarySource — Mermaid 源码（嵌入 <script type="text/plain">，供「Copy Mermaid」）
- * 若传入 second（另一走向 SVG）：左上角浮层「LR / TB」纯 CSS 切换两张图（飞书剥脚本仍可用）；
- * 右上角浮层「Copy Mermaid」复制当前可见走向的源码（有脚本时写剪贴板；失败或无脚本时弹窗/details 手选复制）。
- * 浮层按钮 @media print 隐藏。
+ *   source / secondarySource — Mermaid 源码（嵌入 <script type="text/plain"> + 只读「源码」折叠面板）
+ * 若传入 second（另一走向 SVG）：左上角浮层「LR / TB」纯 CSS 切换两张图；源码面板也按 radio 同步显示对应走向。
+ * 右上角浮层「Copy Mermaid」复制当前可见走向的源码（有脚本时写剪贴板；失败弹窗手选）。
+ * 浮层按钮与源码面板 @media print 隐藏。
  */
 function escapeHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -591,6 +591,14 @@ function escapeHtml(s) {
 /** <script type="text/plain"> 内容仍会被 HTML 解析器找 </script>，需拆开 */
 function escapeScriptPlain(s) {
   return String(s).replace(/<\/(script)/gi, '<\\/$1')
+}
+
+function sourcePanel(label, text, extraClass = '') {
+  const cls = extraClass ? `mf-src ${extraClass}` : 'mf-src'
+  return `<details class="${cls}">
+<summary>源码${label ? `（${label}）` : ''}</summary>
+<pre class="mf-src-pre" tabindex="0">${escapeHtml(text)}</pre>
+</details>`
 }
 
 export function buildHtmlWidget(clean, bg, second = null, opts = {}) {
@@ -603,7 +611,6 @@ export function buildHtmlWidget(clean, bg, second = null, opts = {}) {
   const secondary = hasDual ? inlineSvgForWidget(second, bg) : ''
 
   const copyBtn = `<button type="button" class="mf-btn mf-copy" id="mf-copy" title="复制当前可见图的 Mermaid 源码">Copy Mermaid</button>`
-  // 左上角：一个控件，点击在 LR↔TB 间翻转（纯 CSS radio + 两个互斥 label）
   const flipBtns = hasDual ? `<label class="mf-btn mf-flip" for="mf-d-b" title="切换为 ${secondaryDir}">LR / TB</label>
 <label class="mf-btn mf-flip" for="mf-d-a" title="切换为 ${primaryDir}">LR / TB</label>` : ''
 
@@ -614,13 +621,12 @@ export function buildHtmlWidget(clean, bg, second = null, opts = {}) {
       : `<script type="text/plain" id="mermaid-source">${escapeScriptPlain(source)}</script>`)
     : ''
 
-  const fallbackDetails = source
-    ? `<noscript>
-<details class="mf-fallback">
-<summary>选中复制 Mermaid</summary>
-<textarea readonly rows="8">${escapeHtml(source)}</textarea>
-</details>
-</noscript>`
+  // 只读源码面板：双走向时两个 details，用同一组 radio 纯 CSS 切换可见性（打开态各自保留）
+  const srcPanels = source
+    ? (hasDual
+      ? `${sourcePanel(primaryDir, source, 'mf-src-a')}
+${sourcePanel(secondaryDir, secondarySource, 'mf-src-b')}`
+      : sourcePanel('', source))
     : ''
 
   const dialog = source
@@ -633,7 +639,6 @@ export function buildHtmlWidget(clean, bg, second = null, opts = {}) {
 </dialog>`
     : ''
 
-  // 剪贴板脚本：优先 clipboard API，失败则填 dialog 手选；双栏时按当前 radio 取对应源码
   const copyScript = source
     ? `<script>
 (function(){
@@ -704,9 +709,13 @@ body{font-family:${CJK_STACK};}
 .mf-dlg textarea{width:100%;box-sizing:border-box;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;border:1px solid #e5e6eb;border-radius:6px;padding:8px;resize:vertical;min-height:140px;background:#fafbfc;}
 .mf-dlg menu{margin:0;padding:0;display:flex;justify-content:flex-end;}
 .mf-dlg menu button{font:13px ${CJK_STACK};padding:5px 14px;border:1px solid #e5e6eb;border-radius:6px;background:#fff;cursor:pointer;}
-.mf-fallback{margin:12px;font-size:13px;color:#646a73;}
-.mf-fallback textarea{width:100%;box-sizing:border-box;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;margin-top:6px;}
-@media print{.mf-btn,.mf-toast,.mf-dlg,.mf-fallback{display:none!important;}}
+.mf-src{margin:12px 0 0;font-size:13px;color:#646a73;border:1px solid #e5e6eb;border-radius:8px;background:rgba(247,248,250,.9);padding:0 10px 8px;}
+.mf-src summary{cursor:pointer;user-select:none;padding:8px 2px;font-weight:500;color:#4e5969;list-style:none;}
+.mf-src summary::-webkit-details-marker{display:none;}
+.mf-src summary::before{content:'▸ ';color:#8f959e;}
+.mf-src[open] summary::before{content:'▾ ';}
+.mf-src-pre{margin:0;padding:8px 10px;border-radius:6px;background:#fff;border:1px solid #e5e6eb;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#1f2329;white-space:pre-wrap;word-break:break-word;max-height:280px;overflow:auto;tab-size:2;}
+@media print{.mf-btn,.mf-toast,.mf-dlg,.mf-src{display:none!important;}}
 `.trim()
 
   if (!hasDual) {
@@ -718,34 +727,36 @@ body{font-family:${CJK_STACK};}
 <title>Mermaid</title>
 <style>
 ${cssCommon}
-.mf-wrap{display:flex;justify-content:center;}
+.mf-diagram{display:flex;justify-content:center;width:100%;}
 </style>
 </head>
 <body>
 ${srcScripts}
 <div class="mf-wrap">
 ${copyBtn}
-${primary}
+<div class="mf-diagram">${primary}</div>
+${srcPanels}
 </div>
 ${dialog}
-${fallbackDetails}
 ${copyScript}
 </body>
 </html>
 `
   }
 
-  // 双栏：radio 控制显示哪张图 + 哪个 flip 按钮可见（当前为 A 时显示「点我切到 B」的 label）
   const cssDual = `
 .mf-wrap input[name="mf-dir"]{position:absolute;opacity:0;pointer-events:none;width:0;height:0;}
 .mf-pane{display:flex;justify-content:center;}
 .mf-pane-b{display:none;}
+.mf-src-a,.mf-src-b{display:none;}
 #mf-d-a:checked ~ .mf-flip[for="mf-d-b"]{display:inline-flex;align-items:center;}
 #mf-d-b:checked ~ .mf-flip[for="mf-d-a"]{display:inline-flex;align-items:center;}
 #mf-d-a:checked ~ .mf-pane-a{display:flex;}
 #mf-d-a:checked ~ .mf-pane-b{display:none;}
 #mf-d-b:checked ~ .mf-pane-a{display:none;}
 #mf-d-b:checked ~ .mf-pane-b{display:flex;}
+#mf-d-a:checked ~ .mf-src-a{display:block;}
+#mf-d-b:checked ~ .mf-src-b{display:block;}
 @media print{.mf-flip{display:none!important;}}
 `.trim()
 
@@ -769,9 +780,9 @@ ${flipBtns}
 ${copyBtn}
 <div class="mf-pane mf-pane-a">${primary}</div>
 <div class="mf-pane mf-pane-b">${secondary}</div>
+${srcPanels}
 </div>
 ${dialog}
-${fallbackDetails}
 ${copyScript}
 </body>
 </html>
