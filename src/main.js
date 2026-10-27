@@ -2,7 +2,7 @@ import './style.css'
 import { render, validate, THEMES, DEFAULT_THEME } from './render.js'
 import { EXAMPLES } from './examples.js'
 import { pngSize, svgSize, svgToPngBlob, copyPng, copyText, download, cleanSvg, buildHtmlWidget, HTML_WIDGET_LIMIT, PNG_MAX_SIDE, PNG_HARD_MAX_SIDE } from './export.js'
-import { THEME_LABELS, LAYOUTS, LAYOUT_LABELS, themeDefaultLayout, parseLayout, firstLine, detectFlowHeader, setFlowDirection, flipFlowDirection, isHorizontalDir } from './shared/core.js'
+import { THEME_LABELS, LAYOUTS, LAYOUT_LABELS, themeDefaultLayout, parseLayout, firstLine, detectFlowHeader, setFlowDirection, flipFlowDirection, isHorizontalDir, elkPalette } from './shared/core.js'
 
 const $ = (id) => document.getElementById(id)
 const els = {
@@ -583,13 +583,22 @@ function flat(which) {
   if (!state.flat) state.flat = cleanSvg(state.svg, THEMES[state.theme].bg)
   return state.flat
 }
+let offlineWidgetPromise = null
 async function htmlWidget() {
   const bg = THEMES[state.theme].bg
   const primary = state.compare ? flat('elk') : flat()
   const src = els.source.value
   const info = detectFlowHeader(src)
   if (!info) return buildHtmlWidget(primary, bg, null, { source: src })
-  // 流程图：再渲另一走向，HTML 里用纯 CSS 切换（无需 script）；源码一并嵌入供 Copy Mermaid
+  // ELK 流程图：小组件自带裁剪版 ELK，在飞书里离线排版（可切 LR/TB、可编辑源码重绘）；约 380KB，按需加载
+  if (primary.includes('data-renderer="chatgpt-elk"')) {
+    try {
+      const { buildOfflineWidget } = await (offlineWidgetPromise ||= import('./shared/offline/widget.js'))
+      const html = buildOfflineWidget(src, { palette: elkPalette(state.theme), bg })
+      if (new Blob([html]).size <= HTML_WIDGET_LIMIT) return html
+    } catch (e) { console.warn('离线小组件生成失败，改用静态版', e) }
+  }
+  // 流程图（非 ELK）：再渲另一走向，HTML 里用纯 CSS 切换（无需 script）；源码一并嵌入供 Copy Mermaid
   const cur = info.dir === 'TD' ? 'TB' : info.dir
   const other = isHorizontalDir(cur) ? 'TB' : 'LR'
   const otherCode = setFlowDirection(src, other)
@@ -643,12 +652,13 @@ els.copyHtml.addEventListener('click', async () => {
     await copyText(html)
     const kb = (size / 1024).toFixed(1)
     const hasToggle = html.includes('mf-d-a')
+    const offline = html.includes('id="mf-eng"')
     if (size > HTML_WIDGET_LIMIT) {
       els.error.hidden = false; els.error.classList.add('warn')
       els.error.textContent = `HTML 已复制，但有 ${kb} KB，超过飞书 HTML 小组件 500 KB 上限，可能贴不进去。建议改用 PNG。`
       toast(`HTML ${kb} KB，超过 500 KB 上限！`, 4000)
     } else {
-      toast(hasToggle ? `HTML 小组件已复制（含 LR/TB 切换，${kb} KB）` : `HTML 小组件代码已复制（${kb} KB）`)
+      toast(offline ? `HTML 小组件已复制（离线 ELK：可切 LR/TB、改源码重绘，${kb} KB）` : hasToggle ? `HTML 小组件已复制（含 LR/TB 切换，${kb} KB）` : `HTML 小组件代码已复制（${kb} KB）`, offline ? 3500 : undefined)
     }
   } catch (e) { toast('复制失败：' + (e.message || e)) }
 })

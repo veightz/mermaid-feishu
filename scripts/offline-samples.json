@@ -1,0 +1,6 @@
+[
+ {"id":"chk-flow","code":"flowchart TD\n  A[提交需求] --> B{评审通过?}\n  B -->|是| C[开发]\n  B -->|否| D[退回修改]\n  D --> A"},
+ {"id":"chk-lr-semi","code":"graph LR\n A[开始] --> B[处理] --> C[结束]"},
+ {"id":"shapes","code":"flowchart LR\n  A([开始]) --> B(圆角)\n  B --> C((圆))\n  C ==> D{判断}\n  D -.->|可能| E{{六边形}}\n  D -- 文本标签 --> F[\"带引号<br/>换行\"]\n  F --- G\n  G -.- H\n  H === I(((双圆)))\n  A & B --> J[合并]\n  J <--> K[双向]\n  K -. 虚线文本 .-> L\n  L == 粗文本 ==> M\n  M --> N[**粗体** 与 *斜体*]"},
+ {"id":"chain","code":"graph TB\n  a-->b-->c-->d\n  a-->c\n  b-->d\n  d-->a\n  %% comment\n  x1[第一\\n第二] --> a"}
+]
