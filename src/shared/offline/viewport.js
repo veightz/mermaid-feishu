@@ -1,18 +1,20 @@
 // Preview interaction only: the rendered SVG and Mermaid source remain unchanged.
 export function createSvgViewport(container, resetButton) {
-  const MIN_ZOOM = 0.25, MAX_ZOOM = 4, MAX_HEIGHT = 640
+  const MIN_ZOOM = 0.25, MAX_ZOOM = 4
   const abort = new AbortController()
   const listen = (target, event, fn, options = {}) => target.addEventListener(event, fn, { ...options, signal: abort.signal })
   let svg = null, baseWidth = 0, baseHeight = 0
-  let zoom = 1, x = 0, y = 0, drag = null
+  let zoom = 1, x = 0, y = 0, drag = null, gesture = null
 
   function paint() {
     if (!svg) return
     svg.style.transform = `translate(${x}px, ${y}px) scale(${zoom})`
     resetButton.textContent = `${Math.round(zoom * 100)}% · 重置`
+    resetButton.title = '恢复到 100% 并居中'
   }
   function reset() {
     endDrag()
+    gesture = null
     zoom = 1
     x = (container.clientWidth - baseWidth) / 2
     y = 16
@@ -24,9 +26,10 @@ export function createSvgViewport(container, resetButton) {
     const width = box.width || Number(svg.getAttribute('width'))
     const height = box.height || Number(svg.getAttribute('height'))
     if (!(width > 0 && height > 0 && container.clientWidth > 0)) return
-    baseWidth = Math.min(width, container.clientWidth, 820)
+    // Preserve the original width-fit size; tall diagrams need their full height.
+    baseWidth = Math.min(width, container.clientWidth)
     baseHeight = baseWidth * height / width
-    container.style.height = `${Math.max(120, Math.min(baseHeight + 32, MAX_HEIGHT))}px`
+    container.style.height = `${Math.max(120, baseHeight + 32)}px`
     Object.assign(svg.style, { position: 'absolute', left: '0', top: '0', width: `${baseWidth}px`, height: `${baseHeight}px`, maxWidth: 'none', margin: '0', transformOrigin: '0 0' })
     reset()
   }
@@ -42,6 +45,17 @@ export function createSvgViewport(container, resetButton) {
     drag = null
     container.classList.remove('mf-panning')
     if (container.hasPointerCapture(id)) container.releasePointerCapture(id)
+  }
+  function zoomAt(value, clientX, clientY) {
+    if (!Number.isFinite(value) || value <= 0) return
+    const next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, value))
+    const rect = container.getBoundingClientRect()
+    const ax = Number.isFinite(clientX) ? clientX - rect.left - container.clientLeft : container.clientWidth / 2
+    const ay = Number.isFinite(clientY) ? clientY - rect.top - container.clientTop : container.clientHeight / 2
+    x = ax - (ax - x) * next / zoom
+    y = ay - (ay - y) * next / zoom
+    zoom = next
+    paint()
   }
 
   listen(container, 'pointerdown', (event) => {
@@ -61,22 +75,35 @@ export function createSvgViewport(container, resetButton) {
   for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) listen(container, name, (event) => {
     if (drag?.id === event.pointerId) endDrag()
   })
-  listen(window, 'blur', endDrag)
+  listen(window, 'blur', () => { endDrag(); gesture = null })
   listen(container, 'contextmenu', (event) => { if (svg) event.preventDefault() })
   listen(container, 'wheel', (event) => {
     if (!svg || !(event.ctrlKey || event.metaKey)) return
     event.preventDefault()
+    // Safari may also emit wheel events during its native pinch gesture.
+    if (gesture) return
     endDrag()
     const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? container.clientHeight : 1)
-    const step = Math.max(-Math.log(1.1), Math.min(Math.log(1.1), -delta * 0.0015))
-    const next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom * Math.exp(step)))
-    const rect = container.getBoundingClientRect()
-    const ax = event.clientX - rect.left - container.clientLeft
-    const ay = event.clientY - rect.top - container.clientTop
-    x = ax - (ax - x) * next / zoom
-    y = ay - (ay - y) * next / zoom
-    zoom = next
-    paint()
+    const step = Math.max(-Math.log(1.35), Math.min(Math.log(1.35), -delta * 0.006))
+    zoomAt(zoom * Math.exp(step), event.clientX, event.clientY)
+  }, { passive: false })
+  // Chromium trackpad pinch uses ctrl+wheel; Safari exposes GestureEvent.scale.
+  listen(container, 'gesturestart', (event) => {
+    if (!svg) return
+    event.preventDefault()
+    endDrag()
+    gesture = { zoom }
+  }, { passive: false })
+  listen(container, 'gesturechange', (event) => {
+    if (!gesture) return
+    event.preventDefault()
+    if (!(event.scale > 0)) return
+    zoomAt(gesture.zoom * event.scale ** 2, event.clientX, event.clientY)
+  }, { passive: false })
+  listen(container, 'gestureend', (event) => {
+    if (!gesture) return
+    event.preventDefault()
+    gesture = null
   }, { passive: false })
   listen(resetButton, 'click', reset)
   listen(container, 'dblclick', (event) => {

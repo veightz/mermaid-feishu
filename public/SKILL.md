@@ -8,7 +8,7 @@ description: 把 Mermaid 源码渲染成适合飞书文档的好看 SVG 或自�
 一个无需鉴权的 HTTP API + 网页，把 Mermaid 渲染成**适合贴进飞书文档**的输出：
 
 - **SVG**：干净的独立 SVG（`xmlns` / `viewBox` / `width` / `height` 齐全，颜色已全部写死，无 CSS 变量、无外部字体、无 `foreignObject`），适合导入**飞书画板**。
-- **HTML**：自包含 HTML（内联 SVG + 内联样式 + 系统中文字体，无外部脚本/字体），居中、按 820px 自适应，背景跟随主题，适合贴进**飞书 HTML 小组件**（上限 500KB）。
+- **HTML**：自包含 HTML（内联 SVG + 内联样式 + 系统中文字体，无外部脚本/字体），按容器可用宽度自适应，背景跟随主题，适合贴进**飞书 HTML 小组件**（上限 500KB）。
 - **PNG**：API 不提供。请让用户打开网页 <https://mermaid-feishu.pages.dev> 点「复制 PNG」，直接粘进飞书正文（飞书文档的图片不支持 SVG）。网页导出的 PNG = 图的原始尺寸 × 倍率（2x/3x），最长边不超过 4096px（超出等比缩小，但倍率不低于 1x；为保住 1x 最长边可放宽到 8192px，1x 仍超过 8192px 时缩到 8192px）。飞书正文约 820px 宽，原始宽度 > 1200px 的图贴进去字会变小：生成 `flowchart LR` 时，如果节点多、链条长，优先用 `flowchart TB`。
 
 渲染器：服务端只用 [beautiful-mermaid](https://github.com/lukilabs/beautiful-mermaid)（MIT，纯 TypeScript、无 DOM）。网页版额外支持回退官方 mermaid.js。
@@ -258,6 +258,10 @@ body{font-family:-apple-system, ... sans-serif;}
 | 飞书「文本绘图」小组件 | Mermaid 源码 | 直接粘贴源码（飞书自带渲染，样式不可控） |
 
 建议：给用户回复时同时附上 Mermaid 源码，方便以后修改。
+
+HTML 画布和工具栏撑满可用宽度，底部不显示常驻操作提示。HTML 图支持 Ctrl / ⌘ + 滚轮与 Mac 触控板双指捏合缩放（25%–400%），左上角百分比按钮恢复到 100% 和初始位置，右键拖动可平移；普通滚轮继续滚动文档。100% 是按可用宽度适配的初始尺寸，长图保留完整高度。缩放不改写源码或 SVG 内容，打印时显示完整图形。
+
+源码开关默认在 Copy Mermaid 左侧，展开面板位于图上方。API 静态 HTML 提供只读源码；网页导出的离线流程图与 `scripts/build-widget.mjs` 生成的通用组件提供「编辑源码 → 重绘」。需要可编辑的组件时使用 `buildOfflineWidget(source)`，不要用静态 API 输出替代。
 
 ## 安装（给 Agent）
 

@@ -13,7 +13,7 @@ const jsonScript = (o) => JSON.stringify(o).replace(/</g, '\\u003c')
  * @param {string} source  Mermaid flowchart 源码
  * @param {object} [opts]  { palette, bg, generic }：palette 为 ChatGPT 风配色覆盖（与站点 elkPalette 相同），bg 为背景色；
  *   embed=true：/embed 页（被飞书 HTML 块用 iframe 引用），源码经 postMessage 收发，由外层保存；隐含 generic
- *   generic=true：通用「飞书 Mermaid 渲染插件」——源码面板平时收起（工具栏「编辑源码」按钮，在 Copy Mermaid 左边），展开后在图上方，主流程是「粘贴 Mermaid → 重绘」
+ *   generic=true（默认）：源码面板平时收起（工具栏「编辑源码」按钮，在 Copy Mermaid 左边），展开后在图上方，主流程是「粘贴 Mermaid → 重绘」；false 保留旧版 details 布局
  */
 function srcPanel(generic, embed = false) {
   if (generic) {
@@ -31,13 +31,13 @@ export function buildOfflineWidget(source, opts = {}) {
   const palette = opts.palette || null
   const bg = opts.bg || (palette && palette.bg) || '#ffffff'
   const embed = !!opts.embed
-  const generic = !!opts.generic || embed
+  const generic = opts.generic !== false || embed
   const css = `html,body{margin:0;background:${bg}}body{font-family:${STACK}}[hidden]{display:none!important}
-.mf{box-sizing:border-box;max-width:820px;margin:0 auto;padding:16px 12px;position:relative}
+.mf{box-sizing:border-box;width:100%;margin:0;padding:16px 12px;position:relative}
 .mf-b{position:absolute;z-index:2;top:10px;font:12px/1.2 ${STACK};padding:5px 10px;border:1px solid rgba(51,112,255,.35);border-radius:6px;background:rgba(255,255,255,.82);color:#2b5cb8;cursor:pointer;backdrop-filter:blur(4px);box-shadow:0 1px 3px rgba(0,0,0,.06)}
 .mf-b:hover{background:rgba(240,244,255,.95);border-color:#3370ff}
 #mf-flip{left:10px}#mf-copy{right:10px}
-.mf-out{min-height:60px;position:relative;overflow:hidden;border-radius:8px}.mf-out svg{user-select:none}.mf-panning,.mf-panning *{cursor:grabbing!important}.mf-view-hint{margin:6px 0;font-size:11px;color:#8f959e}.mf-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px}.mf-tl,.mf-tr{display:flex;gap:6px;flex-wrap:wrap}.mf-toolbar .mf-b{position:static}.mf-toolbar .mf-tr{position:static}
+.mf-out{min-height:60px;position:relative;overflow:hidden;border-radius:8px}.mf-out svg{user-select:none}.mf-panning,.mf-panning *{cursor:grabbing!important}.mf-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px}.mf-tl,.mf-tr{display:flex;gap:6px;flex-wrap:wrap}.mf-toolbar .mf-b{position:static}.mf-toolbar .mf-tr{position:static}
 .mf-st{padding:36px 0;text-align:center;color:#8f959e;font-size:13px}
 .mf-warn{margin:10px 0 0;padding:8px 12px;border:1px solid #f5d48a;background:#fffaeb;border-radius:8px;font-size:12px;color:#7a5a00}
 .mf-warn ul{margin:4px 0 0;padding-left:18px}.mf-err{color:#d83931}
@@ -54,7 +54,7 @@ export function buildOfflineWidget(source, opts = {}) {
 .mf-hd button{font:12px ${STACK};padding:3px 10px;border:1px solid #d0d3d9;border-radius:6px;background:#fff;color:#4e5969;cursor:pointer}
 .mf-gen .mf-src textarea{min-height:150px}
 .mf-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:rgba(31,35,41,.92);color:#fff;padding:6px 14px;border-radius:8px;font-size:13px;z-index:9;pointer-events:none}
-@media print{.mf-toolbar,.mf-view-hint,.mf-warn,.mf-src,.mf-toast{display:none!important}.mf-out{height:auto!important;overflow:visible}.mf-out svg{position:static!important;transform:none!important;width:100%!important;height:auto!important}}`
+@media print{.mf-toolbar,.mf-warn,.mf-src,.mf-toast{display:none!important}.mf-out{height:auto!important;overflow:visible}.mf-out svg{position:static!important;transform:none!important;width:100%!important;height:auto!important}}`
   const boot = `(function(){var st=document.getElementById('mf-st');function go(){try{var A=${JSON.stringify(ENGINE_ALPHABET)},T=[],i,j,v,b,s=document.getElementById('mf-eng').textContent.replace(/\\s/g,''),o=new Array(s.length/5*4),p=0;for(i=0;i<85;i++)T[A.charCodeAt(i)]=i;for(i=0;i<s.length;i+=5){v=0;for(j=0;j<5;j++)v=v*85+T[s.charCodeAt(i+j)];for(j=3;j>=0;j--){b=v%256;v=(v-b)/256;o[p+j]=b>127?b-256:b}p+=4}o.length=${ENGINE_LEN};eval(LZMA.decompress(o))}catch(e){st.textContent='离线排版引擎加载失败：'+(e&&e.message||e)}}setTimeout(go,20)})();`
   return `<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mermaid</title>
@@ -63,7 +63,6 @@ export function buildOfflineWidget(source, opts = {}) {
 <div class="mf-toolbar"><div class="mf-tl"><button type="button" class="mf-b" id="mf-flip" hidden title="切换走向并离线重新排版">LR / TB</button><button type="button" class="mf-b" id="mf-reset-view" hidden title="恢复原始缩放和位置">100% · 重置</button></div>
 ${generic ? '<div class="mf-tr"><button type="button" class="mf-b" id="mf-edit" title="展开源码：粘贴 Mermaid 后重绘">编辑源码</button>' : ''}<button type="button" class="mf-b" id="mf-copy" title="复制 Mermaid 源码">Copy Mermaid</button>${generic ? '</div>' : ''}</div>
 ${generic ? srcPanel(true, embed) : ''}<div class="mf-out" id="mf-out"><div class="mf-st" id="mf-st">正在离线排版…</div></div>
-<div class="mf-view-hint">右键拖动 · Ctrl / ⌘ + 滚轮缩放 · 双击空白处重置</div>
 <div class="mf-warn" id="mf-warn" hidden></div>
 ${generic ? '' : srcPanel(false)}</div>
 <script type="text/plain" id="mermaid-source">${escScript(source)}</script>

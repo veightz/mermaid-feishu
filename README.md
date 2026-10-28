@@ -17,21 +17,23 @@
    - **复制 PNG**：把高清 PNG 写进剪贴板，去飞书文档里直接 `⌘/Ctrl + V`。剪贴板不可用时自动改为下载。
    - **下载 PNG**：保存成文件，再拖进飞书。
    - **复制 SVG**：复制干净的独立 SVG（带 `xmlns` / `viewBox` / `width` / `height`，CSS 变量和 `color-mix` 都已换成具体颜色，没有外部字体，不用 `foreignObject`），可以导入飞书画板。注意飞书文档的「图片」不支持 SVG。
-   - **复制为 HTML 小组件**：复制一段自包含 HTML（内联 SVG + 内联样式 + 系统中文字体，无外部脚本/字体），居中、按 820px 自适应、背景跟随主题，贴进飞书 HTML 小组件。超过小组件 500 KB 上限时会提示。
+   - **复制为 HTML 小组件**：复制一段自包含 HTML（内联 SVG + 内联样式 + 系统中文字体，无外部脚本/字体），按容器可用宽度自适应、背景跟随主题，贴进飞书 HTML 小组件。超过小组件 500 KB 上限时会提示。
    - **复制源码**：复制 Mermaid 源码，可以贴进飞书自带的「文本绘图」小组件。
 4. 源码会自动保存在本机浏览器（localStorage），刷新不丢。也可以用 `?example=flowchart` 这样的链接直接打开示例。
 
 ## 离线 HTML 小组件的预览操作
 
-通过网页导出的离线流程图 HTML，以及 `npm run build:widget` 生成的通用小组件和 `/embed` 页面，都支持：
+通过网页、API 导出的 HTML，以及 `npm run build:widget` 生成的通用小组件和 `/embed` 页面，都支持：
 
 - 按住鼠标右键拖动图形。
 - 在图形上按 Ctrl / ⌘ + 滚轮缩放，鼠标指向的位置保持不动；缩放范围为 25%–400%。普通滚轮继续滚动文档。
-- 点击工具栏的缩放百分比，或双击图形空白处，恢复初始位置与缩放。
+- Mac 触控板双指捏合缩放（兼容 Ctrl+wheel 和 Safari GestureEvent 两种事件）。
+- 点击左上角的缩放百分比，或双击图形空白处，恢复到 100% 并居中。
+- 源码默认折叠，开关在 Copy Mermaid 左侧，展开后位于图形上方。离线流程图支持编辑重绘；静态图显示只读源码。
 
-预览区域最高 640px，较长的图可拖动查看。重新绘图、切换方向或调整容器宽度时会恢复初始视图。平移和缩放只改变预览，不修改 Mermaid 源码，也不保存为图形内容；打印时显示完整图形。
+画布和工具栏撑满容器可用宽度，底部不显示常驻操作提示。100% 对应图形按可用宽度适配后的初始视图，长图保留完整高度；放大后可右键拖动查看。重新绘图、切换方向或调整容器宽度时会恢复初始视图。平移和缩放只改变预览，不修改 Mermaid 源码，也不保存为图形内容；打印时显示完整图形。
 
-交互位于 `src/shared/offline/viewport.js`，由 `offline/app.js` 连接渲染结果，`offline/widget.js` 提供工具栏和样式。修改后运行 `npm run build:offline` 更新仓库中的引擎负载，再运行 `npm run build:widget` 生成可粘贴进飞书的 HTML。
+交互共用 `src/shared/offline/viewport.js`；静态 HTML 通过 `static-widget-controls.js` 内联同一交互函数，离线流程图由 `offline/app.js` 连接渲染结果，`offline/widget.js` 提供工具栏和样式。修改后运行 `npm run build:offline` 更新仓库中的引擎负载，再运行 `npm run build:widget` 生成可粘贴进飞书的 HTML。
 
 ## 渲染器
 
