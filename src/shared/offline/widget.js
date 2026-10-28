@@ -31,12 +31,13 @@ export function buildOfflineWidget(source, opts = {}) {
   const palette = opts.palette || null
   const bg = opts.bg || (palette && palette.bg) || '#ffffff'
   const embed = !!opts.embed
+  const viewBase = opts.viewBase || 'https://mermaid-feishu.pages.dev/view' // 「新窗口查看」打开的 /view 地址
   const generic = !!opts.generic || embed
   const css = `html,body{margin:0;background:${bg}}body{font-family:${STACK}}[hidden]{display:none!important}
 .mf{box-sizing:border-box;max-width:820px;margin:0 auto;padding:16px 12px;position:relative}
 .mf-b{position:absolute;z-index:2;top:10px;font:12px/1.2 ${STACK};padding:5px 10px;border:1px solid rgba(51,112,255,.35);border-radius:6px;background:rgba(255,255,255,.82);color:#2b5cb8;cursor:pointer;backdrop-filter:blur(4px);box-shadow:0 1px 3px rgba(0,0,0,.06)}
 .mf-b:hover{background:rgba(240,244,255,.95);border-color:#3370ff}
-#mf-flip{left:10px}#mf-copy{right:10px}
+#mf-flip{left:10px}
 .mf-out{min-height:60px}
 .mf-st{padding:36px 0;text-align:center;color:#8f959e;font-size:13px}
 .mf-warn{margin:10px 0 0;padding:8px 12px;border:1px solid #f5d48a;background:#fffaeb;border-radius:8px;font-size:12px;color:#7a5a00}
@@ -54,19 +55,19 @@ export function buildOfflineWidget(source, opts = {}) {
 .mf-hd button{font:12px ${STACK};padding:3px 10px;border:1px solid #d0d3d9;border-radius:6px;background:#fff;color:#4e5969;cursor:pointer}
 .mf-gen .mf-src textarea{min-height:150px}
 .mf-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:rgba(31,35,41,.92);color:#fff;padding:6px 14px;border-radius:8px;font-size:13px;z-index:9;pointer-events:none}
-@media print{.mf-b,.mf-warn,.mf-src,.mf-toast{display:none!important}}`
+@media print{.mf-tr,.mf-b,.mf-warn,.mf-src,.mf-toast{display:none!important}}`
   const boot = `(function(){var st=document.getElementById('mf-st');function go(){try{var A=${JSON.stringify(ENGINE_ALPHABET)},T=[],i,j,v,b,s=document.getElementById('mf-eng').textContent.replace(/\\s/g,''),o=new Array(s.length/5*4),p=0;for(i=0;i<85;i++)T[A.charCodeAt(i)]=i;for(i=0;i<s.length;i+=5){v=0;for(j=0;j<5;j++)v=v*85+T[s.charCodeAt(i+j)];for(j=3;j>=0;j--){b=v%256;v=(v-b)/256;o[p+j]=b>127?b-256:b}p+=4}o.length=${ENGINE_LEN};eval(LZMA.decompress(o))}catch(e){st.textContent='离线排版引擎加载失败：'+(e&&e.message||e)}}setTimeout(go,20)})();`
   return `<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mermaid</title>
 <style>${css}</style></head><body>
 <div class="mf${generic ? ' mf-gen' : ''}">
 <button type="button" class="mf-b" id="mf-flip" hidden title="切换走向并离线重新排版">LR / TB</button>
-${generic ? '<div class="mf-tr"><button type="button" class="mf-b" id="mf-edit" title="展开源码：粘贴 Mermaid 后重绘">编辑源码</button>' : ''}<button type="button" class="mf-b" id="mf-copy" title="复制 Mermaid 源码">Copy Mermaid</button>${generic ? '</div>' : ''}
+<div class="mf-tr">${generic ? '<button type="button" class="mf-b" id="mf-edit" title="展开源码：粘贴 Mermaid 后重绘">编辑源码</button>' : ''}<button type="button" class="mf-b" id="mf-view" title="在新窗口打开可缩放的纯预览（需联网）">新窗口查看</button><button type="button" class="mf-b" id="mf-copy" title="复制 Mermaid 源码">Copy Mermaid</button></div>
 ${generic ? srcPanel(true, embed) : ''}<div class="mf-out" id="mf-out"><div class="mf-st" id="mf-st">正在离线排版…</div></div>
 <div class="mf-warn" id="mf-warn" hidden></div>
 ${generic ? '' : srcPanel(false)}</div>
 <script type="text/plain" id="mermaid-source">${escScript(source)}</script>
-<script type="application/json" id="mf-cfg">${jsonScript(embed ? { palette, embed: true } : { palette })}</script>
+<script type="application/json" id="mf-cfg">${jsonScript({ palette, viewBase, ...(opts.theme && opts.theme !== 'chatgpt' ? { theme: opts.theme } : {}), ...(embed ? { embed: true } : {}) })}</script>
 <script>${LZMA_DECODER}</script>
 <script type="application/octet-stream" id="mf-eng">${ENGINE_B85}</script>
 <script>${boot}</script>

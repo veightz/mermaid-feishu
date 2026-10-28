@@ -11,18 +11,21 @@ export const EXAMPLE = `flowchart TB
   C --> E([结束])
   D --> E`
 
+// 「新窗口查看」指向的 /view。合并到 main 之前指向预览分支；合并后用 MF_VIEW_BASE=https://mermaid-feishu.pages.dev/view 重新构建
+export const VIEW_BASE = process.env.MF_VIEW_BASE || 'https://view-page.mermaid-feishu.pages.dev/view'
 const FEISHU_RATIO = 1.184 // 实测：本地 407,090 B 的文件飞书计为 482,068 B
-const html = buildOfflineWidget(EXAMPLE, { generic: true })
+const html = buildOfflineWidget(EXAMPLE, { generic: true, viewBase: VIEW_BASE })
 const bytes = Buffer.byteLength(html)
 const out = new URL('../dist-widget/feishu-mermaid-widget.html', import.meta.url)
 mkdirSync(new URL('.', out), { recursive: true })
 writeFileSync(out, html)
 const est = Math.round(bytes * FEISHU_RATIO)
+console.log(`viewBase: ${VIEW_BASE}`)
 console.log(`${out.pathname}: ${bytes} B（飞书估计 ≈ ${est} B / ${(est / 1024).toFixed(1)} KB）`)
 if (bytes * FEISHU_RATIO >= 490 * 1000) { console.error('超出预算：本地 × 1.184 应 < 490KB'); process.exit(1) }
 
 // iframe 版：渲染页 + 小引用块
-const embed = buildOfflineWidget(EXAMPLE, { embed: true })
+const embed = buildOfflineWidget(EXAMPLE, { embed: true, viewBase: VIEW_BASE })
 writeFileSync(new URL('embed.html', out), embed)
 const block = readFileSync(new URL('./embed-probe-block.html', import.meta.url), 'utf8')
 writeFileSync(new URL('embed-probe-block.html', out), block)

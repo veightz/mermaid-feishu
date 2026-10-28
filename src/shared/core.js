@@ -610,7 +610,12 @@ export function buildHtmlWidget(clean, bg, second = null, opts = {}) {
   const hasDual = !!second
   const secondary = hasDual ? inlineSvgForWidget(second, bg) : ''
 
-  const copyBtn = `<button type="button" class="mf-btn mf-copy" id="mf-copy" title="复制当前可见图的 Mermaid 源码">Copy Mermaid</button>`
+  // opts.viewUrl：右上角加「新窗口查看」（/view 链接，纯 <a>，无脚本）；不传则与原输出逐字节相同（API 不传）
+  const viewUrl = opts.viewUrl ? String(opts.viewUrl) : ''
+  const copyBtnOnly = `<button type="button" class="mf-btn mf-copy" id="mf-copy" title="复制当前可见图的 Mermaid 源码">Copy Mermaid</button>`
+  const copyBtn = viewUrl
+    ? `<div class="mf-tr"><a class="mf-btn mf-view" id="mf-view" href="${escapeHtml(viewUrl)}" target="_blank" rel="noopener" title="在新窗口打开可缩放的纯预览（需联网）">新窗口查看</a>${copyBtnOnly}</div>`
+    : copyBtnOnly
   const flipBtns = hasDual ? `<label class="mf-btn mf-flip" for="mf-d-b" title="切换为 ${secondaryDir}">LR / TB</label>
 <label class="mf-btn mf-flip" for="mf-d-a" title="切换为 ${primaryDir}">LR / TB</label>` : ''
 
@@ -716,6 +721,7 @@ body{font-family:${CJK_STACK};}
 .mf-src[open] summary::before{content:'▾ ';}
 .mf-src-pre{margin:0;padding:8px 10px;border-radius:6px;background:#fff;border:1px solid #e5e6eb;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#1f2329;white-space:pre-wrap;word-break:break-word;max-height:280px;overflow:auto;tab-size:2;}
 @media print{.mf-btn,.mf-toast,.mf-dlg,.mf-src{display:none!important;}}
+${viewUrl ? `.mf-tr{position:absolute;z-index:2;top:10px;right:10px;display:flex;gap:6px;}.mf-tr .mf-btn{position:static;text-decoration:none;}` : ''}
 `.trim()
 
   if (!hasDual) {

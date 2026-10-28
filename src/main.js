@@ -1,6 +1,7 @@
 import './style.css'
 import { render, validate, THEMES, DEFAULT_THEME } from './render.js'
 import { EXAMPLES } from './examples.js'
+import { buildViewUrl, decodeViewHash, VIEW_URL_SOFT_LIMIT } from './shared/viewlink.js'
 import { pngSize, svgSize, svgToPngBlob, copyPng, copyText, download, cleanSvg, buildHtmlWidget, HTML_WIDGET_LIMIT, PNG_MAX_SIDE, PNG_HARD_MAX_SIDE } from './export.js'
 import { THEME_LABELS, LAYOUTS, LAYOUT_LABELS, themeDefaultLayout, parseLayout, firstLine, detectFlowHeader, setFlowDirection, flipFlowDirection, isHorizontalDir, elkPalette } from './shared/core.js'
 
@@ -14,6 +15,7 @@ const els = {
   rendererDefault: $('renderer-default'), rendererElk: $('renderer-elk'),
   sizeDefault: $('size-default'), sizeElk: $('size-elk'),
   footSingle: $('foot-single'), footCompare: $('foot-compare'),
+  copyViewLink: $('copy-view-link'), openView: $('open-view'),
   copyPng: $('copy-png'), downloadPng: $('download-png'), copySvg: $('copy-svg'), copySrc: $('copy-src'), copyHtml: $('copy-html'),
 }
 const LS = { src: 'mf.source', theme: 'mf.theme', layout: 'mf.layout', scale: 'mf.scale', zoom: 'mf.zoom', compare: 'mf.compare', compareOrient: 'mf.compareOrient', previewMode: 'mf.previewMode' }
@@ -95,6 +97,15 @@ else if (q.get('compare') === '0') { state.compare = false; els.compare.checked 
 const qOrient = (q.get('compareOrient') || '').toLowerCase()
 if (qOrient === 'row' || qOrient === 'col') { state.compareOrient = qOrient; store(LS.compareOrient, qOrient) }
 applyCompareChrome()
+
+// 链接带源码：#c= / #m=（lz-string）、#pako: / #base64:（mermaid.live）、#src=（base64url）——「在编辑器中打开」用；读完去掉 hash，之后的编辑照常存本机
+const hashLoad = location.hash.length > 1 ? decodeViewHash(location.hash).then((r) => {
+  if (!r || r.code == null) return false
+  els.source.value = r.code
+  store(LS.src, r.code)
+  history.replaceState(null, '', location.pathname + location.search)
+  return true
+}).catch((e) => { setTimeout(() => toast('链接里的源码无法解析：' + (e.message || e), 4000), 300); return false }) : null
 
 const ZOOM_MIN = 0.5, ZOOM_MAX = 4
 const STAGE_BASE_W = 820 // 飞书正文约 820px
@@ -584,17 +595,22 @@ function flat(which) {
   return state.flat
 }
 let offlineWidgetPromise = null
+const VIEW_BASE = location.origin + '/view'
+function viewUrl(code = els.source.value) {
+  const info = detectFlowHeader(code)
+  return buildViewUrl(VIEW_BASE, code, { theme: state.theme, layout: state.compare ? 'elk' : state.layout, dir: info ? info.dir : undefined })
+}
 async function htmlWidget() {
   const bg = THEMES[state.theme].bg
   const primary = state.compare ? flat('elk') : flat()
   const src = els.source.value
   const info = detectFlowHeader(src)
-  if (!info) return buildHtmlWidget(primary, bg, null, { source: src })
+  if (!info) return buildHtmlWidget(primary, bg, null, { source: src, viewUrl: viewUrl(src) })
   // ELK 流程图：小组件自带裁剪版 ELK，在飞书里离线排版（可切 LR/TB、可编辑源码重绘）；约 380KB，按需加载
   if (primary.includes('data-renderer="chatgpt-elk"')) {
     try {
       const { buildOfflineWidget } = await (offlineWidgetPromise ||= import('./shared/offline/widget.js'))
-      const html = buildOfflineWidget(src, { palette: elkPalette(state.theme), bg })
+      const html = buildOfflineWidget(src, { palette: elkPalette(state.theme), bg, viewBase: VIEW_BASE, theme: state.theme })
       if (new Blob([html]).size <= HTML_WIDGET_LIMIT) return html
     } catch (e) { console.warn('离线小组件生成失败，改用静态版', e) }
   }
@@ -602,16 +618,16 @@ async function htmlWidget() {
   const cur = info.dir === 'TD' ? 'TB' : info.dir
   const other = isHorizontalDir(cur) ? 'TB' : 'LR'
   const otherCode = setFlowDirection(src, other)
-  if (!otherCode || otherCode === src) return buildHtmlWidget(primary, bg, null, { source: src })
+  if (!otherCode || otherCode === src) return buildHtmlWidget(primary, bg, null, { source: src, viewUrl: viewUrl(src) })
   try {
     const res = await render(otherCode, state.theme, state.compare ? 'elk' : state.layout)
     const second = cleanSvg(res.svg, bg)
     return buildHtmlWidget(primary, bg, second, {
       primaryDir: cur, secondaryDir: other,
-      source: src, secondarySource: otherCode,
+      source: src, secondarySource: otherCode, viewUrl: viewUrl(src),
     })
   } catch {
-    return buildHtmlWidget(primary, bg, null, { source: src })
+    return buildHtmlWidget(primary, bg, null, { source: src, viewUrl: viewUrl(src) })
   }
 }
 function makePng(which) {
@@ -662,6 +678,20 @@ els.copyHtml.addEventListener('click', async () => {
     }
   } catch (e) { toast('复制失败：' + (e.message || e)) }
 })
+els.copyViewLink.addEventListener('click', async () => {
+  const u = viewUrl()
+  try { await copyText(u); toast(u.length > VIEW_URL_SOFT_LIMIT ? `查看链接已复制（${u.length} 字符，较长，部分聊天工具可能截断）` : '查看链接已复制：打开即是纯预览页', 3000) } catch (e) { toast('复制失败：' + e.message) }
+})
+els.openView.addEventListener('click', () => {
+  const code = els.source.value
+  const u = viewUrl(code)
+  if (u.length <= VIEW_URL_SOFT_LIMIT) { window.open(u, '_blank', 'noopener'); return }
+  // 太长：开 /view#wait，等它 ready 再 postMessage 源码
+  const w = window.open(VIEW_BASE + (u.includes('?') ? u.slice(u.indexOf('?'), u.indexOf('#')) : '') + '#wait', '_blank')
+  if (!w) { toast('浏览器拦截了新窗口'); return }
+  const onMsg = (e) => { if (e.source === w && e.data && e.data.type === 'mf-view-ready') { w.postMessage({ type: 'mermaid', code }, '*'); removeEventListener('message', onMsg) } }
+  addEventListener('message', onMsg)
+})
 els.copySrc.addEventListener('click', async () => {
   try { await copyText(els.source.value); toast('Mermaid 源码已复制，可粘进飞书「文本绘图」') } catch (e) { toast('复制失败：' + e.message) }
 })
@@ -695,6 +725,7 @@ els.compareWrap.addEventListener('click', async (e) => {
 window.__mf = { state, render, makePng, pngSize, EXAMPLES, update, flat, htmlWidget }
 
 update()
+if (hashLoad) hashLoad.then((ok) => { if (ok) update() })
 
 
 // ---------- 预览模式：PNG / SVG / HTML（只影响屏幕预览，不改导出 / API）----------

@@ -45,6 +45,15 @@ if (withLayouts) {
   const r5 = await call('/api/render', { method: 'POST', body: JSON.stringify({ code: SAMPLES.flow, direction: 'sideways' }) })
   const j5 = await r5.json()
   if (r5.status !== 400 || j5.code !== 'bad_direction') { bad++; console.log('BAD bad_direction', r5.status, j5) } else console.log('ok  invalid direction → 400 bad_direction')
+  // viewUrl：JSON 字段 + X-View-Url 头；#c= 能解回源码
+  const { decodeViewHash } = await import('../src/shared/viewlink.js')
+  const r7 = await call('/api/render?json=1', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 'flowchart LR\n  A --> B', direction: 'tb', theme: 'feishu-light' }) })
+  const j7 = await r7.json(), h7 = r7.headers.get('x-view-url')
+  const dec7 = j7.viewUrl ? await decodeViewHash(new URL(j7.viewUrl).hash) : null
+  const r8 = await call('/api/render?code=' + encodeURIComponent(SAMPLES.flow))
+  if (!j7.viewUrl || h7 !== j7.viewUrl || !j7.viewUrl.startsWith('https://x/view?theme=feishu-light&layout=default&dir=TB#c=') || dec7?.code !== j7.code || !(r8.headers.get('x-view-url') || '').startsWith('https://x/view?dir=TB#c=')) {
+    bad++; console.log('BAD viewUrl', j7.viewUrl, h7, dec7, r8.headers.get('x-view-url'))
+  } else console.log('ok  viewUrl field + X-View-Url header decode back to source')
   const r6 = await call('/api/render?json=1', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: SAMPLES.flow, theme: 'feishu-light' }) })
   const j6 = await r6.json()
   if (j6.theme !== 'feishu-light' || j6.layout !== 'default') { bad++; console.log('BAD explicit theme', j6) } else console.log('ok  explicit theme=feishu-light keeps default layout')

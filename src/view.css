@@ -1,0 +1,22 @@
+html,body{margin:0;height:100%;overflow:hidden;background:#fff;font:13px/1.4 -apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif;color:#1f2329}
+.vp{position:fixed;inset:0;overflow:hidden;cursor:grab;touch-action:none;outline:none}
+.vp.drag{cursor:grabbing}
+.cv{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
+.cv svg{display:block}
+.bar{position:fixed;top:10px;z-index:3;display:flex;gap:6px;align-items:center}
+.bar-l{left:12px;max-width:40vw}
+.bar-r{right:12px;flex-wrap:wrap;justify-content:flex-end}
+.title{font-weight:600;font-size:14px;padding:5px 10px;border-radius:6px;background:rgba(255,255,255,.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.note{font-size:12px;color:#8f959e}
+.bar-r button,.bar-r a{font:12px/1.2 inherit;font-family:inherit;padding:5px 10px;border:1px solid rgba(51,112,255,.35);border-radius:6px;background:rgba(255,255,255,.88);color:#2b5cb8;cursor:pointer;text-decoration:none;backdrop-filter:blur(4px);box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.bar-r button:hover,.bar-r a:hover{background:rgba(240,244,255,.97);border-color:#3370ff}
+#zoom-val{min-width:52px}
+.state{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#8f959e;font-size:14px;pointer-events:none;white-space:pre-wrap;text-align:center;padding:24px}
+.state.err{color:#d83931;pointer-events:auto}
+.state.err pre{max-width:80vw;overflow:auto;text-align:left;background:#fff5f5;border:1px solid #f3c2c2;border-radius:8px;padding:12px;color:#a8071a;font:12px/1.5 ui-monospace,Menlo,monospace}
+.empty{position:fixed;inset:0;display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;padding:24px;background:#fff;z-index:2}
+.empty h2{margin:0}.empty p{margin:0;color:#646a73}
+.empty textarea{width:min(720px,90vw);height:40vh;font:13px/1.55 ui-monospace,Menlo,Consolas,monospace;border:1px solid #d0d3d9;border-radius:8px;padding:10px}
+.empty button{font:14px inherit;font-family:inherit;padding:6px 18px;border-radius:6px;border:1px solid #10a37f;background:#10a37f;color:#fff;cursor:pointer}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:rgba(31,35,41,.92);color:#fff;padding:6px 14px;border-radius:8px;z-index:9}
+@media print{.bar,.toast{display:none!important}}
