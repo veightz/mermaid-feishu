@@ -1,13 +1,15 @@
 // /view 查看链接：生成与解析（网页、/view、离线小组件、API 共用）。
-// 生成：<base>/view?theme=&layout=&dir=#c=<lz-string compressToEncodedURIComponent(源码)>
+// 生成：<base>/view?theme=&layout=&dir=&c=<lz-string URI 安全压缩，'+' 换成 '_'>
+// 源码放 query 而不是 #hash：飞书等应用的跳转/安全中转可能丢掉 #hash；'_' 替 '+' 避免被当成空格、经二次编码也不变
 // 解析（按顺序）：#c= / #m=（lz-string）、#pako:（mermaid.live，zlib deflate 的 JSON {code}）、#base64:（mermaid.live 旧版 JSON）、#src=（base64url UTF-8）
 import LZ from 'lz-string'
 
 export const VIEW_DEFAULTS = { theme: 'chatgpt', layout: 'elk', dir: 'TB' }
-export const VIEW_URL_SOFT_LIMIT = 8000 // 超过就改走 #wait + postMessage
+export const VIEW_URL_SOFT_LIMIT = 30000 // 超过才考虑 #wait + postMessage（仅网页内、有 opener 时）
 export const MAX_VIEW_SOURCE = 200 * 1024
 
-export const compressCode = (code) => LZ.compressToEncodedURIComponent(String(code))
+export const compressCode = (code) => LZ.compressToEncodedURIComponent(String(code)).replace(/\+/g, '_')
+const decompress = (v) => LZ.decompressFromEncodedURIComponent(String(v).replace(/[_ ]/g, '+'))
 
 /** 生成 /view 链接。base 例如 https://mermaid-feishu.pages.dev/view；theme/layout 与默认相同时省略，dir 给了就带上 */
 export function buildViewUrl(base, code, { theme, layout, dir } = {}) {
@@ -15,10 +17,11 @@ export function buildViewUrl(base, code, { theme, layout, dir } = {}) {
   if (theme && theme !== VIEW_DEFAULTS.theme) q.push('theme=' + encodeURIComponent(theme))
   if (layout && layout !== VIEW_DEFAULTS.layout) q.push('layout=' + encodeURIComponent(layout))
   if (dir) q.push('dir=' + encodeURIComponent(String(dir).toUpperCase() === 'TD' ? 'TB' : String(dir).toUpperCase()))
-  return `${base}${q.length ? '?' + q.join('&') : ''}#c=${compressCode(code)}`
+  q.push('c=' + compressCode(code))
+  return `${base}?${q.join('&')}`
 }
 /** 编辑器链接：<origin>/#c=... */
-export const buildEditorUrl = (origin, code) => `${origin}/#c=${compressCode(code)}`
+export const buildEditorUrl = (origin, code) => `${origin}/#c=${LZ.compressToEncodedURIComponent(String(code))}`
 
 const b64ToBytes = (s) => {
   s = s.replace(/-/g, '+').replace(/_/g, '/').replace(/\s/g, '')
@@ -53,7 +56,7 @@ export async function decodeViewHash(hash) {
     if (i < 0) continue
     const k = part.slice(0, i), v = part.slice(i + 1)
     if (k === 'c' || k === 'm') {
-      const code = LZ.decompressFromEncodedURIComponent(v)
+      const code = decompress(v)
       if (code == null || code === '') throw new Error(`#${k}= 链接内容无法解压（可能被截断）`)
       return { code, format: k }
     }
@@ -67,4 +70,18 @@ export function sourceFromMessage(d) {
   if (!d || typeof d !== 'object') return null
   const s = d.type === 'mermaid' ? d.code : d.type === 'mf-src' ? d.src : null
   return typeof s === 'string' && s.trim() && s.length <= MAX_VIEW_SOURCE ? s : null
+}
+
+/** 先读 query 里的 ?c= / ?m=，再读 hash（兼容旧链接）。返回同 decodeViewHash */
+export async function decodeViewLocation(search, hash) {
+  const q = new URLSearchParams(String(search || ''))
+  for (const k of ['c', 'm']) {
+    const v = q.get(k)
+    if (v) {
+      const code = decompress(v)
+      if (code == null || code === '') throw new Error(`?${k}= 链接内容无法解压（可能被截断）`)
+      return { code, format: 'q' + k }
+    }
+  }
+  return decodeViewHash(hash)
 }

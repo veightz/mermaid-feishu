@@ -12,7 +12,7 @@
 - [POST /api/render](https://mermaid-feishu.pages.dev/api/render): JSON `{ code, format: "svg"|"html", theme?, layout?: "default"|"elk"|"auto", direction?: "tb"|"lr"|"bt"|"rl"|"auto" }` → `image/svg+xml` 或 `text/html`；`?json=1` 返回 JSON 包装；源码上限 50KB
 - [GET /api/render?code=&format=&theme=&layout=&direction=](https://mermaid-feishu.pages.dev/api/render): 短源码用 GET
 - [GET /api/themes](https://mermaid-feishu.pages.dev/api/themes): 主题列表（默认 feishu-light）；默认主题 `chatgpt`（配 ELK）；`layout`：不填/`auto` 跟随主题（chatgpt→elk），`elk`/`default` 可强制；`direction`：`tb`/`lr`/`bt`/`rl` 在渲染前改写 flowchart/graph 走向，不填不改；只影响 flowchart/graph
-- [GET /view](https://mermaid-feishu.pages.dev/view): 纯预览页（缩放/拖动/LR·TB/复制 SVG）。链接 `/view?theme=chatgpt&layout=elk&dir=LR#c=<lz-string compressToEncodedURIComponent(源码)>`，query 均可省；也认 `#m=`、mermaid.live 的 `#pako:`/`#base64:`、`#src=<base64url>`、`?src=<CORS 可读的 raw URL>`。`/api/render` 返回 `viewUrl`（JSON）与 `X-View-Url` 头
+- [GET /view](https://mermaid-feishu.pages.dev/view): 纯预览页（只显示图，缩放/拖动/LR·TB/复制源码）。链接 `/view?dir=LR&c=<lz-string compressToEncodedURIComponent(源码)，+ 换 _>`，除 c 外均可省；也认旧的 `#c=`/`#m=`、mermaid.live 的 `#pako:`/`#base64:`、`#src=<base64url>`、`?src=<CORS 可读的 raw URL>`。`/api/render` 返回 `viewUrl`（JSON）与 `X-View-Url` 头
 - [GET /api/health](https://mermaid-feishu.pages.dev/api/health): 健康检查
 
 ## Supported (API)

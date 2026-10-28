@@ -5,7 +5,7 @@ import { sanitizeSvg } from './shared/sanitize-svg.js'
 import { render, THEMES, DEFAULT_THEME } from './render.js'
 import { cleanSvg, parseLayout, detectFlowHeader, setFlowDirection, isHorizontalDir, FLOW_DIRECTIONS } from './shared/core.js'
 import { copyText } from './export.js'
-import { decodeViewHash, sourceFromMessage, buildViewUrl, buildEditorUrl, MAX_VIEW_SOURCE } from './shared/viewlink.js'
+import { decodeViewLocation, sourceFromMessage, buildViewUrl, MAX_VIEW_SOURCE } from './shared/viewlink.js'
 
 const $ = (id) => document.getElementById(id)
 const vp = $('vp'), cv = $('cv'), stateEl = $('state')
@@ -33,11 +33,11 @@ function titleOf(code) {
 // ---------- 缩放 / 拖动 ----------
 let S = 1, X = 0, Y = 0, natW = 0, natH = 0
 const ZMIN = 0.05, ZMAX = 8
-function apply() { cv.style.transform = `translate(${X}px,${Y}px) scale(${S})`; $('zoom-val').textContent = Math.round(S * 100) + '%' }
+function apply() { cv.style.transform = `translate(${X}px,${Y}px) scale(${S})` }
 function fit() {
   if (!natW) return
-  const W = innerWidth, H = innerHeight, pad = 24, top = 56
-  S = Math.min((W - pad * 2) / natW, (H - top - pad) / natH, 2)
+  const W = innerWidth, H = innerHeight, pad = 16, top = 16
+  S = Math.min((W - pad * 2) / natW, (H - top - pad) / natH, 3)
   S = Math.max(ZMIN, S)
   X = (W - natW * S) / 2; Y = top + (H - top - pad - natH * S) / 2
   apply()
@@ -69,25 +69,22 @@ addEventListener('resize', () => { if (fitted) fit() })
 let fitted = true
 vp.addEventListener('pointerdown', () => { fitted = false })
 vp.addEventListener('wheel', () => { fitted = false })
-$('zoom-in').onclick = () => { fitted = false; zoomAt(1.25, innerWidth / 2, innerHeight / 2) }
-$('zoom-out').onclick = () => { fitted = false; zoomAt(0.8, innerWidth / 2, innerHeight / 2) }
-$('zoom-val').onclick = () => { fitted = false; zoomAt(1 / S, innerWidth / 2, innerHeight / 2) }
 $('fit').onclick = () => { fitted = true; fit() }
 addEventListener('keydown', (e) => {
-  if (e.target.tagName === 'TEXTAREA') return
   if (e.key === '0') $('fit').click()
-  else if (e.key === '+' || e.key === '=') $('zoom-in').click()
-  else if (e.key === '-') $('zoom-out').click()
+  else if (e.key === '+' || e.key === '=') { fitted = false; zoomAt(1.25, innerWidth / 2, innerHeight / 2) }
+  else if (e.key === '-') { fitted = false; zoomAt(0.8, innerWidth / 2, innerHeight / 2) }
 })
+// 触屏点一下显出浮动按钮，3 秒后变淡
+vp.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') { const f = $('tools'); f.classList.add('on'); clearTimeout(f.t); f.t = setTimeout(() => f.classList.remove('on'), 3000) } })
 
 // ---------- 渲染 ----------
 let seq = 0
 async function show(code, format) {
   const my = ++seq
-  $('empty').hidden = true
   if (code.length > MAX_VIEW_SOURCE) return showState(`源码超过 ${MAX_VIEW_SOURCE / 1024}KB 上限`, true)
   if (dir && detectFlowHeader(code)) code = setFlowDirection(code, dir) || code
-  showState('正在排版…')
+  showState('')
   let res
   try { res = await render(code, theme, layout) } catch (e) {
     if (my !== seq) return
@@ -112,10 +109,9 @@ async function show(code, format) {
   $('tools').hidden = false
   const info = detectFlowHeader(code)
   $('flip').hidden = !info
-  if (info) { const d = info.dir === 'TD' ? 'TB' : info.dir; $('flip').textContent = isHorizontalDir(d) ? 'LR → TB' : 'TB → LR' }
-  $('edit').href = buildEditorUrl(location.origin, code)
-  const t = titleOf(code); $('title').textContent = t; document.title = t === 'Mermaid 预览' ? t : `${t} · Mermaid 预览`
-  $('note').hidden = !res.note; $('note').textContent = res.note || ''
+  if (info) { const d = info.dir === 'TD' ? 'TB' : info.dir; $('flip').textContent = isHorizontalDir(d) ? 'TB' : 'LR'; $('flip').title = isHorizontalDir(d) ? '改成上下（TB）' : '改成左右（LR）' }
+  const t = titleOf(code); document.title = t === 'Mermaid 预览' ? t : `${t} · Mermaid 预览`
+  if (res.note) console.info(res.note)
   fitted = true; fit()
 }
 $('flip').onclick = () => {
@@ -126,15 +122,14 @@ $('flip').onclick = () => {
   history.replaceState(null, '', url) // 链接跟着走向更新，复制地址栏即可分享
   show(V.code, V.format)
 }
-$('copy-svg').onclick = async () => { try { await copyText(V.clean); toast('SVG 已复制') } catch (e) { toast('复制失败：' + (e.message || e)) } }
 $('copy-src').onclick = async () => { try { await copyText(V.code); toast('Mermaid 源码已复制') } catch (e) { toast('复制失败：' + (e.message || e)) } }
 
 // ---------- 源码来源 ----------
 function waitForMessage() {
-  showState('等待源码…（由打开本页的窗口通过 postMessage 发送）')
+  showState('')
   const target = window.opener || (window.parent !== window ? window.parent : null)
   if (target) { try { target.postMessage({ type: 'mf-view-ready' }, '*') } catch { /* 跨域 opener 被浏览器隔离时忽略 */ } }
-  setTimeout(() => { if (!V.code && !gotMessage) showEmpty('没有收到源码（打开本页的窗口可能已关闭）。') }, 5000)
+  setTimeout(() => { if (!V.code && !gotMessage) showEmpty() }, 5000)
 }
 let gotMessage = false
 addEventListener('message', (e) => {
@@ -144,19 +139,10 @@ addEventListener('message', (e) => {
   gotMessage = true
   show(code, 'message')
 })
-function showEmpty(msg) {
-  stateEl.hidden = true; $('tools').hidden = true; cv.innerHTML = ''; natW = 0
-  const f = $('empty'); f.hidden = false
-  if (msg) f.querySelector('p').textContent = msg + ' 也可以直接粘贴 Mermaid 源码，点「预览」。'
-  $('paste').focus()
+function showEmpty() {
+  $('tools').hidden = true; cv.innerHTML = ''; natW = 0
+  showState('链接里没有 Mermaid 源码')
 }
-$('empty').addEventListener('submit', (e) => {
-  e.preventDefault()
-  const code = $('paste').value
-  if (!code.trim()) return
-  history.replaceState(null, '', buildViewUrl(location.origin + location.pathname, code, { theme: q.get('theme') || undefined, layout: q.get('layout') || undefined, dir: dir || undefined }))
-  show(code, 'paste')
-})
 // ?src= 只接受绝对 https:// 地址；不带 Cookie；边读边限 200KB
 export function checkSrcUrl(u) {
   let url
@@ -167,7 +153,7 @@ export function checkSrcUrl(u) {
 async function fromUrlParam(u) {
   const href = checkSrcUrl(u)
   if (!href) return showState('?src= 只支持完整的 https:// 链接', true, `收到：${String(u).slice(0, 300)}\n不支持 http:、相对路径、data:、blob:、javascript:、file: 等地址。`)
-  showState('正在从链接读取源码…')
+  showState('')
   let res
   try { res = await fetch(href, { mode: 'cors', credentials: 'omit', redirect: 'follow', referrerPolicy: 'no-referrer' }) } catch (e) {
     return showState(`读取 ?src= 失败：${href}`, true, '可能原因：对方不允许跨域（CORS），或网络不通。\nGitHub 用 raw.githubusercontent.com、Gist 用 gist.githubusercontent.com 的 raw 链接。\n' + String(e.message || e))
@@ -196,7 +182,7 @@ async function fromUrlParam(u) {
 }
 async function load() {
   let r
-  try { r = await decodeViewHash(location.hash) } catch (e) { return showState('链接里的源码无法解析：', true, String(e.message || e)) }
+  try { r = await decodeViewLocation(location.search, location.hash) } catch (e) { return showState('链接里的源码无法解析：', true, String(e.message || e)) }
   if (r && r.code != null) return show(r.code, r.format)
   if (r && r.wait) return waitForMessage()
   if (q.get('src')) return fromUrlParam(q.get('src'))

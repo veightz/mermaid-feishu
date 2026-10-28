@@ -9,24 +9,12 @@
 </head>
 <body>
   <div id="vp" class="vp" tabindex="0"><div id="cv" class="cv"></div></div>
-  <div class="bar bar-l"><span id="title" class="title">Mermaid 预览</span><span id="note" class="note" hidden></span></div>
-  <div class="bar bar-r" id="tools" hidden>
-    <button type="button" id="zoom-out" title="缩小">−</button>
-    <button type="button" id="zoom-val" title="点按回到 100%">100%</button>
-    <button type="button" id="zoom-in" title="放大">＋</button>
-    <button type="button" id="fit" title="适应窗口（重置）">重置</button>
-    <button type="button" id="flip" hidden title="切换走向并重新排版">LR / TB</button>
-    <button type="button" id="copy-svg" title="复制 SVG 代码">复制 SVG</button>
-    <button type="button" id="copy-src" title="复制 Mermaid 源码">Copy Mermaid</button>
-    <a id="edit" href="/" target="_blank" rel="noopener" title="在 Mermaid 转飞书编辑器里打开这份源码">在编辑器中打开</a>
+  <div class="fab" id="tools" hidden>
+    <button type="button" id="fit" title="适应窗口（0）">⤢</button>
+    <button type="button" id="flip" hidden title="切换走向">LR</button>
+    <button type="button" id="copy-src" title="复制 Mermaid 源码">复制</button>
   </div>
-  <div id="state" class="state">正在读取源码…</div>
-  <form id="empty" class="empty" hidden>
-    <h2>Mermaid 预览</h2>
-    <p>链接里没有图。粘贴 Mermaid 源码，点「预览」（链接会更新，可直接分享）。</p>
-    <textarea id="paste" spellcheck="false" placeholder="flowchart LR&#10;  A[开始] --> B{判断}"></textarea>
-    <div><button type="submit" class="primary">预览</button> <a href="/">去编辑器</a></div>
-  </form>
+  <div id="state" class="state" hidden></div>
   <div id="toast" class="toast" hidden></div>
   <script type="module" src="/src/view.js"></script>
 </body>

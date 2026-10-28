@@ -687,7 +687,8 @@ els.openView.addEventListener('click', () => {
   const u = viewUrl(code)
   if (u.length <= VIEW_URL_SOFT_LIMIT) { window.open(u, '_blank', 'noopener'); return }
   // 太长：开 /view#wait，等它 ready 再 postMessage 源码
-  const w = window.open(VIEW_BASE + (u.includes('?') ? u.slice(u.indexOf('?'), u.indexOf('#')) : '') + '#wait', '_blank')
+  const wu = new URL(u); wu.searchParams.delete('c')
+  const w = window.open(wu.href + '#wait', '_blank')
   if (!w) { toast('浏览器拦截了新窗口'); return }
   const onMsg = (e) => { if (e.source === w && e.data && e.data.type === 'mf-view-ready') { w.postMessage({ type: 'mermaid', code }, '*'); removeEventListener('message', onMsg) } }
   addEventListener('message', onMsg)

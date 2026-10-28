@@ -11,7 +11,7 @@ import {
   detectFlowHeader, setFlowDirection, isHorizontalDir,
 } from '../../src/shared/core.js'
 import { isFlowchart, renderChatGPTFlowchart } from '../../src/shared/chatgpt.js'
-import { buildViewUrl, VIEW_URL_SOFT_LIMIT } from '../../src/shared/viewlink.js'
+import { buildViewUrl } from '../../src/shared/viewlink.js'
 
 const VERSION = '1.0.0'
 const CORS = {
@@ -121,10 +121,10 @@ async function handleRender(request, url) {
     data = buildHtmlWidget(svg, bg, second, opts)
   }
   const usedLayout = renderer === 'chatgpt-elk' ? 'elk' : 'default'
-  // /view 纯预览链接（源码 lz-string 压缩进 #c=；渲染参数放 query）。头部只在不太长时给出，JSON 里总有
+  // /view 纯预览链接（源码 lz-string 压缩进 ?c=，与渲染参数一起放 query）。头部只在不太长时给出，JSON 里总有
   const viewUrl = buildViewUrl(url.origin + '/view', code, { theme, layout, dir: dirApplied.direction || undefined })
   const meta = {
-    ...(viewUrl.length <= VIEW_URL_SOFT_LIMIT ? { 'X-View-Url': viewUrl } : {}),
+    ...(viewUrl.length <= 8000 ? { 'X-View-Url': viewUrl } : {}),
     'X-Renderer': renderer, 'X-Theme': theme, 'X-Layout': usedLayout,
     ...(dirApplied.direction ? { 'X-Direction': dirApplied.direction } : {}),
     ...(dirApplied.rewritten ? { 'X-Direction-Rewritten': '1' } : {}),
