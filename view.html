@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <meta name="referrer" content="no-referrer" />
+  <title>Mermaid 预览</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%2310a37f'/><path d='M8 10h16M8 16h10M8 22h13' stroke='white' stroke-width='3' stroke-linecap='round'/></svg>" />
+</head>
+<body>
+  <div id="vp" class="vp" tabindex="0"><div id="cv" class="cv"></div></div>
+  <div class="fab" id="tools" hidden>
+    <button type="button" id="fit" title="适应窗口（0）">⤢</button>
+    <button type="button" id="flip" hidden title="切换走向">LR</button>
+    <button type="button" id="copy-src" title="复制 Mermaid 源码">复制</button>
+  </div>
+  <div id="state" class="state" hidden></div>
+  <div id="toast" class="toast" hidden></div>
+  <script type="module" src="/src/view.js"></script>
+</body>
+</html>

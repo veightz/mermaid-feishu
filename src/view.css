@@ -1,0 +1,15 @@
+[hidden]{display:none!important}
+html,body{margin:0;height:100%;overflow:hidden;background:#fff;font:13px/1.4 -apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif;color:#1f2329}
+.vp{position:fixed;inset:0;overflow:hidden;cursor:grab;touch-action:none;outline:none}
+.vp.drag{cursor:grabbing}
+.cv{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
+.cv svg{display:block}
+.fab{position:fixed;right:10px;bottom:10px;z-index:3;display:flex;gap:4px;opacity:.28;transition:opacity .15s}
+.fab:hover,.fab:focus-within,.fab.on{opacity:1}
+.fab button{font:12px/1 inherit;font-family:inherit;min-width:28px;height:28px;padding:0 7px;border:1px solid rgba(0,0,0,.12);border-radius:7px;background:rgba(255,255,255,.9);color:#1f2329;cursor:pointer}
+.fab button:hover{background:#fff;border-color:rgba(0,0,0,.25)}
+.state{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#8f959e;font-size:14px;pointer-events:none;white-space:pre-wrap;text-align:center;padding:24px}
+.state.err{color:#d83931;pointer-events:auto}
+.state.err pre{max-width:80vw;overflow:auto;text-align:left;background:#fff5f5;border:1px solid #f3c2c2;border-radius:8px;padding:12px;color:#a8071a;font:12px/1.5 ui-monospace,Menlo,monospace}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:rgba(31,35,41,.92);color:#fff;padding:6px 14px;border-radius:8px;z-index:9}
+@media print{.fab,.toast{display:none!important}}

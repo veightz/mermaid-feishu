@@ -37,7 +37,7 @@ CORS：`Access-Control-Allow-Origin: *`。无需鉴权。
 
 也可以直接用纯文本 body 发送源码（`Content-Type: text/plain`），`format` / `theme` / `layout` 走查询参数。
 
-查询参数 `?json=1`：返回 JSON 包装 `{ ok, format, renderer, theme, layout, direction?, code?, width, height, bytes, data }`，`data` 为 SVG 或 HTML 字符串。
+查询参数 `?json=1`：返回 JSON 包装 `{ ok, format, renderer, theme, layout, direction?, code?, width, height, bytes, viewUrl, data }`，`data` 为 SVG 或 HTML 字符串；`viewUrl` 是 `/view` 纯预览链接（见下文「查看链接」）。成功响应还带头 `X-View-Url`（≤ 8000 字符时）。
 
 默认返回原始内容：
 
@@ -247,6 +247,25 @@ body{font-family:-apple-system, ... sans-serif;}
 ```json
 { "ok": false, "code": "bad_theme", "error": "未知主题 foo / Unknown theme", "themes": ["feishu-light", "feishu-gray", "..."] }
 ```
+
+## 查看链接 `/view`（纯预览页）
+
+`https://mermaid-feishu.pages.dev/view` 是只读的全窗口预览：ChatGPT 风 + ELK（与网页同一条渲染管线），打开即铺满窗口只显示图；可滚轮/捏合缩放、拖动，右下角半透明小按钮：适应窗口、切 LR/TB、复制 Mermaid 源码。源码放在链接里，**不经服务器保存**。
+
+生成链接（推荐，Agent 可直接拼）：
+
+```
+https://mermaid-feishu.pages.dev/view?dir=LR&c=<LZString.compressToEncodedURIComponent(源码)，其中 + 换成 _>
+```
+
+- `?c=`（源码放 query，不放 #hash：飞书等应用的链接中转可能丢掉 #hash；`+` 换 `_` 免得被当成空格，`+`/空格也能识别）：[lz-string](https://github.com/pieroxy/lz-string) 的 `compressToEncodedURIComponent`（JS：`npm i lz-string`；Python：`lzstring` 包的 `compressToEncodedURIComponent`）。`?m=` 是同义别名；旧格式 `#c=` / `#m=` 仍可用。
+- query 参数都可省：`theme`（默认 `chatgpt`）、`layout`（`elk` / `default`，默认 `elk`）、`dir`（`TB` / `LR` / `BT` / `RL`，改写 flowchart 走向；不填按源码）。
+- 也接受：`#pako:…`、`#base64:…`（mermaid.live 链接格式，直接把 mermaid.live 的 hash 换到本站即可）、`#src=<base64url(UTF-8 源码)>`。
+- `?src=<url>`：从一个允许跨域（CORS）的地址读取纯文本 Mermaid（如 GitHub raw / Gist raw），上限 200KB。
+- 没有源码时页面只显示一行「链接里没有 Mermaid 源码」。
+- 链接很长时部分聊天工具会截断（浏览器本身可打开很长的链接）；网页编辑器在链接超过 ~30000 字符时改用 `/view#wait` + `postMessage`：页面就绪后向 opener 发 `{type:'mf-view-ready'}`，接受 `{type:'mermaid', code}` 或 `{type:'mf-src', src}`。内容只当文本渲染。
+
+`/api/render` 成功时也会给出同一格式的链接：JSON 模式（`?json=1`）里的 `viewUrl` 字段（总有），以及响应头 `X-View-Url`（链接不超过 8000 字符时）。用请求的域名拼成。
 
 ## 在飞书里怎么用
 

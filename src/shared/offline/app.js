@@ -3,6 +3,8 @@
 import { renderChatGPTGraph } from '../chatgpt-core.js'
 import { parseFlowchart } from './flow-parser.js'
 import { createSvgViewport } from './viewport.js'
+import { sanitizeSvg } from '../sanitize-svg.js'
+import { buildViewUrl } from '../viewlink.js'
 
 const $ = (id) => document.getElementById(id)
 const FEISHU_W = 820
@@ -66,7 +68,7 @@ function boot() {
       if (my !== busy) return false
       const w = +(/width="([\d.]+)"/.exec(svg) || [])[1] || FEISHU_W
       svg = svg.replace(/<svg\b[^>]*>/, (tag) => tag.replace(/\s(width|height|style)="[^"]*"/g, '').replace(/>$/, ` width="100%" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;max-width:${Math.min(w, FEISHU_W)}px;height:auto;margin:0 auto">`))
-      out.innerHTML = svg
+      out.innerHTML = sanitizeSvg(svg)
       viewport.setSvg(out.querySelector('svg'))
       drawn = src
       flip.textContent = curDir(src) === 'LR' || curDir(src) === 'RL' ? 'LR → TB' : 'TB → LR'
@@ -100,6 +102,20 @@ function boot() {
   if ($('mf-clr')) $('mf-clr').onclick = () => { ta.value = ''; ta.focus(); say('粘贴 Mermaid 后点「重绘」') }
   $('mf-rs').onclick = () => { ta.value = original; draw(original, { persist: true }) }
   ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); $('mf-go').click() } })
+
+  // 「新窗口查看」：/view?c=…（源码在 query 里，不靠 #hash / opener / postMessage，飞书跳转中转也带得过去）
+  // window.open 被拦（沙箱 iframe）→ 退回 <a target=_blank>；同时把链接放进剪贴板
+  $('mf-view').onclick = () => {
+    const code = drawn || ta.value
+    const url = buildViewUrl(cfg.viewBase, code, { theme: cfg.theme, dir: curDir(code) })
+    let w = null
+    try { w = window.open(url, '_blank') } catch (e) { w = null }
+    if (w) { try { w.opener = null } catch (e) {} return }
+    try { const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove() } catch (e) {}
+    const copied = () => toast('已复制查看链接（若没弹出新窗口，粘贴到浏览器打开）')
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(copied, () => toast('无法打开新窗口，也无法复制链接：' + url.slice(0, 60) + '…'))
+    else toast('无法打开新窗口')
+  }
 
   $('mf-copy').onclick = () => {
     const text = ta.value
@@ -140,7 +156,7 @@ function boot() {
     addEventListener('message', (e) => {
       if (P && e.source !== P) return
       const d = e.data
-      if (d && d.type === 'mf-src' && typeof d.src === 'string' && d.src.trim()) accept(d.src)
+      if (d && d.type === 'mf-src' && typeof d.src === 'string' && d.src.trim() && d.src.length <= 200 * 1024) accept(d.src)
     })
     const m = /[#&]src=([^&]*)/.exec(location.hash)
     if (m) {

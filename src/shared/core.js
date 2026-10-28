@@ -606,6 +606,8 @@ export function buildHtmlWidget(clean, bg, second = null, opts = {}) {
   const copyBtn = `<button type="button" class="mf-btn mf-copy" id="mf-copy" title="复制当前可见图的 Mermaid 源码">Copy Mermaid</button>`
   const flipBtn = hasDual ? `<button type="button" class="mf-btn" id="mf-flip" title="切换 ${escapeHtml(primaryDir)} / ${escapeHtml(secondaryDir)}">LR / TB</button>` : ''
   const editBtn = source ? '<button type="button" class="mf-btn" id="mf-edit" aria-controls="mf-src" aria-expanded="false">查看源码</button>' : ''
+  const viewUrl = opts.viewUrl ? String(opts.viewUrl) : ''
+  const viewBtn = viewUrl ? `<a class="mf-btn mf-view" id="mf-view" href="${escapeHtml(viewUrl)}" target="_blank" rel="noopener" title="在新窗口打开可缩放的纯预览（需联网）">新窗口查看</a>` : ''
 
   const srcScripts = source
     ? (hasDual
@@ -705,6 +707,7 @@ body{font-family:${CJK_STACK};}
 .mf-src{margin:12px 0 0;font-size:13px;color:#646a73;border:1px solid #e5e6eb;border-radius:8px;background:rgba(247,248,250,.9);padding:0 10px 8px;}
 .mf-src-pre{margin:0;padding:8px 10px;border-radius:6px;background:#fff;border:1px solid #e5e6eb;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#1f2329;white-space:pre-wrap;word-break:break-word;max-height:280px;overflow:auto;tab-size:2;}
 @media print{.mf-toolbar,.mf-toast,.mf-dlg,.mf-src{display:none!important;}.mf-out{height:auto!important;overflow:visible;}.mf-out svg{position:static!important;transform:none!important;width:100%!important;height:auto!important;}}
+.mf-view{text-decoration:none;}
 `.trim()
 
   return `<!DOCTYPE html>
@@ -716,7 +719,7 @@ ${srcScripts}
 <div class="mf-wrap">
 ${hasDual ? '<input type="radio" name="mf-dir" id="mf-d-a" checked hidden><input type="radio" name="mf-dir" id="mf-d-b" hidden>' : ''}
 <div class="mf-toolbar"><div class="mf-tl">${flipBtn}<button type="button" class="mf-btn" id="mf-reset-view" title="恢复到 100% 并居中">100% · 重置</button></div>
-<div class="mf-tr">${editBtn}${source ? copyBtn : ''}</div></div>
+<div class="mf-tr">${editBtn}${viewBtn}${source ? copyBtn : ''}</div></div>
 ${srcPanels}
 <div class="mf-out" id="mf-out"><div class="mf-pane">${primary}</div>${hasDual ? `<div class="mf-pane" hidden>${secondary}</div>` : ''}</div>
 </div>

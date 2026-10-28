@@ -31,6 +31,7 @@ export function buildOfflineWidget(source, opts = {}) {
   const palette = opts.palette || null
   const bg = opts.bg || (palette && palette.bg) || '#ffffff'
   const embed = !!opts.embed
+  const viewBase = opts.viewBase || 'https://mermaid-feishu.pages.dev/view' // 「新窗口查看」打开的 /view 地址
   const generic = opts.generic !== false || embed
   const css = `html,body{margin:0;background:${bg}}body{font-family:${STACK}}[hidden]{display:none!important}
 .mf{box-sizing:border-box;width:100%;margin:0;padding:16px 12px;position:relative}
@@ -61,12 +62,12 @@ export function buildOfflineWidget(source, opts = {}) {
 <style>${css}</style></head><body>
 <div class="mf${generic ? ' mf-gen' : ''}">
 <div class="mf-toolbar"><div class="mf-tl"><button type="button" class="mf-b" id="mf-flip" hidden title="切换走向并离线重新排版">LR / TB</button><button type="button" class="mf-b" id="mf-reset-view" hidden title="恢复原始缩放和位置">100% · 重置</button></div>
-${generic ? '<div class="mf-tr"><button type="button" class="mf-b" id="mf-edit" title="展开源码：粘贴 Mermaid 后重绘">编辑源码</button>' : ''}<button type="button" class="mf-b" id="mf-copy" title="复制 Mermaid 源码">Copy Mermaid</button>${generic ? '</div>' : ''}</div>
+<div class="mf-tr">${generic ? '<button type="button" class="mf-b" id="mf-edit" title="展开源码：粘贴 Mermaid 后重绘">编辑源码</button>' : ''}<button type="button" class="mf-b" id="mf-view" title="在新窗口打开可缩放的纯预览（需联网）">新窗口查看</button><button type="button" class="mf-b" id="mf-copy" title="复制 Mermaid 源码">Copy Mermaid</button></div></div>
 ${generic ? srcPanel(true, embed) : ''}<div class="mf-out" id="mf-out"><div class="mf-st" id="mf-st">正在离线排版…</div></div>
 <div class="mf-warn" id="mf-warn" hidden></div>
 ${generic ? '' : srcPanel(false)}</div>
 <script type="text/plain" id="mermaid-source">${escScript(source)}</script>
-<script type="application/json" id="mf-cfg">${jsonScript(embed ? { palette, embed: true } : { palette })}</script>
+<script type="application/json" id="mf-cfg">${jsonScript({ palette, viewBase, ...(opts.theme && opts.theme !== 'chatgpt' ? { theme: opts.theme } : {}), ...(embed ? { embed: true } : {}) })}</script>
 <script>${LZMA_DECODER}</script>
 <script type="application/octet-stream" id="mf-eng">${ENGINE_B85}</script>
 <script>${boot}</script>

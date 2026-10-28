@@ -11,6 +11,7 @@ import {
   detectFlowHeader, setFlowDirection, isHorizontalDir,
 } from '../../src/shared/core.js'
 import { isFlowchart, renderChatGPTFlowchart } from '../../src/shared/chatgpt.js'
+import { buildViewUrl } from '../../src/shared/viewlink.js'
 
 const VERSION = '1.0.0'
 const CORS = {
@@ -120,7 +121,10 @@ async function handleRender(request, url) {
     data = buildHtmlWidget(svg, bg, second, opts)
   }
   const usedLayout = renderer === 'chatgpt-elk' ? 'elk' : 'default'
+  // /view 纯预览链接（源码 lz-string 压缩进 ?c=，与渲染参数一起放 query）。头部只在不太长时给出，JSON 里总有
+  const viewUrl = buildViewUrl(url.origin + '/view', code, { theme, layout, dir: dirApplied.direction || undefined })
   const meta = {
+    ...(viewUrl.length <= 8000 ? { 'X-View-Url': viewUrl } : {}),
     'X-Renderer': renderer, 'X-Theme': theme, 'X-Layout': usedLayout,
     ...(dirApplied.direction ? { 'X-Direction': dirApplied.direction } : {}),
     ...(dirApplied.rewritten ? { 'X-Direction-Rewritten': '1' } : {}),
@@ -132,7 +136,7 @@ async function handleRender(request, url) {
       ok: true, format, renderer, theme, layout: usedLayout,
       ...(dirApplied.direction ? { direction: dirApplied.direction } : {}),
       ...(dirApplied.rewritten ? { code: dirApplied.code } : {}),
-      width, height, bytes: byteLength(data),
+      width, height, bytes: byteLength(data), viewUrl,
       ...(cgError ? { note: `ELK 布局失败，已改用 beautiful-mermaid：${cgError}` } : {}),
       data,
     }, meta)
