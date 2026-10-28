@@ -2,6 +2,7 @@
 // 依赖解压脚本先放好 window.MFElk = { ELK, Worker }（裁剪版 GWT ELK，只含 layered）。
 import { renderChatGPTGraph } from '../chatgpt-core.js'
 import { parseFlowchart } from './flow-parser.js'
+import { sanitizeSvg } from '../sanitize-svg.js'
 import { buildViewUrl, VIEW_URL_SOFT_LIMIT } from '../viewlink.js'
 
 const $ = (id) => document.getElementById(id)
@@ -65,7 +66,7 @@ function boot() {
       if (my !== busy) return false
       const w = +(/width="([\d.]+)"/.exec(svg) || [])[1] || FEISHU_W
       svg = svg.replace(/<svg\b[^>]*>/, (tag) => tag.replace(/\s(width|height|style)="[^"]*"/g, '').replace(/>$/, ` width="100%" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;max-width:${Math.min(w, FEISHU_W)}px;height:auto;margin:0 auto">`))
-      out.innerHTML = svg
+      out.innerHTML = sanitizeSvg(svg)
       drawn = src
       flip.textContent = curDir(src) === 'LR' || curDir(src) === 'RL' ? 'LR → TB' : 'TB → LR'
       flip.hidden = false
@@ -163,7 +164,7 @@ function boot() {
     addEventListener('message', (e) => {
       if (P && e.source !== P) return
       const d = e.data
-      if (d && d.type === 'mf-src' && typeof d.src === 'string' && d.src.trim()) accept(d.src)
+      if (d && d.type === 'mf-src' && typeof d.src === 'string' && d.src.trim() && d.src.length <= 200 * 1024) accept(d.src)
     })
     const m = /[#&]src=([^&]*)/.exec(location.hash)
     if (m) {

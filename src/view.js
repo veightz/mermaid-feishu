@@ -1,6 +1,7 @@
 // /view：纯预览页。源码来自链接 hash（#c= / #m= / #pako: / #base64: / #src=）、?src=<url>、或 postMessage；
 // 用站点同一条渲染管线（render.js：ChatGPT 风 + ELK），可缩放 / 拖动 / 切 LR·TB / 复制 SVG / Copy Mermaid。
 import './view.css'
+import { sanitizeSvg } from './shared/sanitize-svg.js'
 import { render, THEMES, DEFAULT_THEME } from './render.js'
 import { cleanSvg, parseLayout, detectFlowHeader, setFlowDirection, isHorizontalDir, FLOW_DIRECTIONS } from './shared/core.js'
 import { copyText } from './export.js'
@@ -96,9 +97,11 @@ async function show(code, format) {
   if (my !== seq) return
   const bg = THEMES[theme].bg
   V.code = code; V.svg = res.svg; V.format = format; V.renderer = res.renderer
+  res.svg = sanitizeSvg(res.svg)
+  V.svg = res.svg
   V.clean = cleanSvg(res.svg, bg)
   document.body.style.background = bg
-  cv.innerHTML = res.svg
+  cv.innerHTML = res.svg // 已在上面 sanitizeSvg 过
   const svg = cv.querySelector('svg')
   const vb = svg.viewBox && svg.viewBox.baseVal
   natW = parseFloat(svg.getAttribute('width')) || (vb && vb.width) || 800
@@ -135,6 +138,7 @@ function waitForMessage() {
 }
 let gotMessage = false
 addEventListener('message', (e) => {
+  if (e.data && typeof e.data === 'object' && e.data.type === 'mf-view-ready') return
   const code = sourceFromMessage(e.data) // 只当文本渲染，不执行任何内容
   if (!code) return
   gotMessage = true
@@ -153,17 +157,41 @@ $('empty').addEventListener('submit', (e) => {
   history.replaceState(null, '', buildViewUrl(location.origin + location.pathname, code, { theme: q.get('theme') || undefined, layout: q.get('layout') || undefined, dir: dir || undefined }))
   show(code, 'paste')
 })
+// ?src= 只接受绝对 https:// 地址；不带 Cookie；边读边限 200KB
+export function checkSrcUrl(u) {
+  let url
+  try { url = new URL(String(u)) } catch { return null } // 相对路径在这里就会失败
+  if (url.protocol !== 'https:' || !url.hostname || url.username || url.password) return null
+  return url.href
+}
 async function fromUrlParam(u) {
+  const href = checkSrcUrl(u)
+  if (!href) return showState('?src= 只支持完整的 https:// 链接', true, `收到：${String(u).slice(0, 300)}\n不支持 http:、相对路径、data:、blob:、javascript:、file: 等地址。`)
   showState('正在从链接读取源码…')
   let res
-  try { res = await fetch(new URL(u, location.href).href, { mode: 'cors', credentials: 'omit' }) } catch (e) {
-    return showState(`读取 ?src= 失败：${u}`, true, '可能原因：对方不允许跨域（CORS），或网络不通。\nGitHub 用 raw.githubusercontent.com、Gist 用 gist.githubusercontent.com 的 raw 链接。\n' + String(e.message || e))
+  try { res = await fetch(href, { mode: 'cors', credentials: 'omit', redirect: 'follow', referrerPolicy: 'no-referrer' }) } catch (e) {
+    return showState(`读取 ?src= 失败：${href}`, true, '可能原因：对方不允许跨域（CORS），或网络不通。\nGitHub 用 raw.githubusercontent.com、Gist 用 gist.githubusercontent.com 的 raw 链接。\n' + String(e.message || e))
   }
-  if (!res.ok) return showState(`读取 ?src= 失败：HTTP ${res.status}`, true, u)
+  if (res.url && !/^https:/i.test(res.url)) return showState('?src= 被重定向到非 https 地址，已拒绝', true, res.url)
+  if (!res.ok) return showState(`读取 ?src= 失败：HTTP ${res.status}`, true, href)
+  const tooBig = () => showState(`?src= 文件超过 ${MAX_VIEW_SOURCE / 1024}KB 上限`, true, href)
   const len = +res.headers.get('content-length') || 0
-  if (len > MAX_VIEW_SOURCE) return showState(`?src= 文件超过 ${MAX_VIEW_SOURCE / 1024}KB 上限`, true, u)
-  const text = await res.text()
-  if (text.length > MAX_VIEW_SOURCE) return showState(`?src= 文件超过 ${MAX_VIEW_SOURCE / 1024}KB 上限`, true, u)
+  if (len > MAX_VIEW_SOURCE * 4) return tooBig()
+  let text = ''
+  if (res.body && res.body.getReader) {
+    const rd = res.body.getReader(), dec = new TextDecoder()
+    let n = 0
+    for (;;) {
+      const { done, value } = await rd.read()
+      if (done) break
+      n += value.byteLength
+      if (n > MAX_VIEW_SOURCE * 4) { try { rd.cancel() } catch {} return tooBig() }
+      text += dec.decode(value, { stream: true })
+      if (text.length > MAX_VIEW_SOURCE) { try { rd.cancel() } catch {} return tooBig() }
+    }
+    text += dec.decode()
+  } else text = await res.text()
+  if (text.length > MAX_VIEW_SOURCE) return tooBig()
   return show(text.replace(/^\s*```(?:mermaid)?\s*\n([\s\S]*?)\n?```\s*$/, '$1'), 'url')
 }
 async function load() {
