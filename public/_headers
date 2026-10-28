@@ -4,3 +4,11 @@
 /llms.txt
   Content-Type: text/plain; charset=utf-8
   Access-Control-Allow-Origin: *
+/view
+  Referrer-Policy: no-referrer
+  X-Robots-Tag: noindex
+/view.html
+  Referrer-Policy: no-referrer
+  X-Robots-Tag: noindex
+/view/*
+  Referrer-Policy: no-referrer
