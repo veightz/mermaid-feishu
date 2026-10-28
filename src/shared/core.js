@@ -1,6 +1,7 @@
 // 前端和 Pages Functions 共用的核心逻辑：不依赖 DOM，Workers 里也能跑。
 import { renderMermaidSVG, THEMES as BM_THEMES } from 'beautiful-mermaid'
 import { RADIX } from './radix.js'
+import { staticWidgetControls } from './static-widget-controls.js'
 
 export const SITE_URL = 'https://mermaid-feishu.pages.dev'
 export const FEISHU_WIDTH = 820 // 飞书正文大约 820 CSS px
@@ -577,13 +578,13 @@ function inlineSvgForWidget(clean, bg) {
 }
 
 /**
- * 飞书 HTML 小组件：自包含离线 HTML，内联 SVG，无外部字体 / 无网络请求，居中、按 820px 自适应。
+ * 飞书 HTML 小组件：自包含离线 HTML，内联 SVG，无外部字体 / 无网络请求，按容器可用宽度自适应。
  * opts:
  *   primaryDir / secondaryDir — 流程图走向
  *   source / secondarySource — Mermaid 源码（嵌入 <script type="text/plain"> + 只读「源码」折叠面板）
- * 若传入 second（另一走向 SVG）：左上角浮层「LR / TB」纯 CSS 切换两张图；源码面板也按 radio 同步显示对应走向。
- * 右上角浮层「Copy Mermaid」复制当前可见走向的源码（有脚本时写剪贴板；失败弹窗手选）。
- * 浮层按钮与源码面板 @media print 隐藏。
+ * 若传入 second（另一走向 SVG）：工具栏「LR / TB」切换图形并同步源码，恢复初始视图。
+ * 源码开关位于 Copy Mermaid 左侧；图形共用离线组件的缩放与平移交互。
+ * 打印时隐藏工具栏与源码，恢复完整图形。
  */
 function escapeHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -591,14 +592,6 @@ function escapeHtml(s) {
 /** <script type="text/plain"> 内容仍会被 HTML 解析器找 </script>，需拆开 */
 function escapeScriptPlain(s) {
   return String(s).replace(/<\/(script)/gi, '<\\/$1')
-}
-
-function sourcePanel(label, text, extraClass = '') {
-  const cls = extraClass ? `mf-src ${extraClass}` : 'mf-src'
-  return `<details class="${cls}">
-<summary>源码${label ? `（${label}）` : ''}</summary>
-<pre class="mf-src-pre" tabindex="0">${escapeHtml(text)}</pre>
-</details>`
 }
 
 export function buildHtmlWidget(clean, bg, second = null, opts = {}) {
@@ -611,8 +604,8 @@ export function buildHtmlWidget(clean, bg, second = null, opts = {}) {
   const secondary = hasDual ? inlineSvgForWidget(second, bg) : ''
 
   const copyBtn = `<button type="button" class="mf-btn mf-copy" id="mf-copy" title="复制当前可见图的 Mermaid 源码">Copy Mermaid</button>`
-  const flipBtns = hasDual ? `<label class="mf-btn mf-flip" for="mf-d-b" title="切换为 ${secondaryDir}">LR / TB</label>
-<label class="mf-btn mf-flip" for="mf-d-a" title="切换为 ${primaryDir}">LR / TB</label>` : ''
+  const flipBtn = hasDual ? `<button type="button" class="mf-btn" id="mf-flip" title="切换 ${escapeHtml(primaryDir)} / ${escapeHtml(secondaryDir)}">LR / TB</button>` : ''
+  const editBtn = source ? '<button type="button" class="mf-btn" id="mf-edit" aria-controls="mf-src" aria-expanded="false">查看源码</button>' : ''
 
   const srcScripts = source
     ? (hasDual
@@ -621,12 +614,8 @@ export function buildHtmlWidget(clean, bg, second = null, opts = {}) {
       : `<script type="text/plain" id="mermaid-source">${escapeScriptPlain(source)}</script>`)
     : ''
 
-  // 只读源码面板：双走向时两个 details，用同一组 radio 纯 CSS 切换可见性（打开态各自保留）
   const srcPanels = source
-    ? (hasDual
-      ? `${sourcePanel(primaryDir, source, 'mf-src-a')}
-${sourcePanel(secondaryDir, secondarySource, 'mf-src-b')}`
-      : sourcePanel('', source))
+    ? `<div class="mf-src" id="mf-src" hidden><pre class="mf-src-pre" id="mf-source-text" tabindex="0">${escapeHtml(source)}</pre></div>`
     : ''
 
   const dialog = source
@@ -696,11 +685,15 @@ ${sourcePanel(secondaryDir, secondarySource, 'mf-src-b')}`
   const cssCommon = `
 html,body{margin:0;padding:0;background:${bg};}
 body{font-family:${CJK_STACK};}
-.mf-wrap{box-sizing:border-box;max-width:820px;margin:0 auto;padding:16px 12px;position:relative;}
-.mf-btn{position:absolute;z-index:2;top:10px;font:12px/1.2 ${CJK_STACK};padding:5px 10px;border:1px solid rgba(51,112,255,.35);border-radius:6px;background:rgba(255,255,255,.82);color:#2b5cb8;cursor:pointer;user-select:none;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);box-shadow:0 1px 3px rgba(0,0,0,.06);}
+.mf-wrap{box-sizing:border-box;width:100%;margin:0;padding:16px 12px;position:relative;}
+.mf-btn{font:12px/1.2 ${CJK_STACK};padding:5px 10px;border:1px solid rgba(51,112,255,.35);border-radius:6px;background:rgba(255,255,255,.82);color:#2b5cb8;cursor:pointer;user-select:none;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);box-shadow:0 1px 3px rgba(0,0,0,.06);}
 .mf-btn:hover{background:rgba(240,244,255,.95);border-color:#3370ff;}
-.mf-flip{left:10px;display:none;}
-.mf-copy{right:10px;}
+[hidden]{display:none!important;}
+.mf-toolbar{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+.mf-tl,.mf-tr{display:flex;gap:6px;flex-wrap:wrap;}
+.mf-out{position:relative;overflow:hidden;border-radius:8px;}
+.mf-out svg{user-select:none;}
+.mf-panning,.mf-panning *{cursor:grabbing!important;}
 .mf-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:rgba(31,35,41,.92);color:#fff;padding:6px 14px;border-radius:8px;font-size:13px;z-index:9;pointer-events:none;}
 .mf-dlg{border:1px solid #e5e6eb;border-radius:10px;padding:0;max-width:min(560px,92vw);width:92vw;box-shadow:0 8px 28px rgba(0,0,0,.18);}
 .mf-dlg::backdrop{background:rgba(0,0,0,.35);}
@@ -710,82 +703,27 @@ body{font-family:${CJK_STACK};}
 .mf-dlg menu{margin:0;padding:0;display:flex;justify-content:flex-end;}
 .mf-dlg menu button{font:13px ${CJK_STACK};padding:5px 14px;border:1px solid #e5e6eb;border-radius:6px;background:#fff;cursor:pointer;}
 .mf-src{margin:12px 0 0;font-size:13px;color:#646a73;border:1px solid #e5e6eb;border-radius:8px;background:rgba(247,248,250,.9);padding:0 10px 8px;}
-.mf-src summary{cursor:pointer;user-select:none;padding:8px 2px;font-weight:500;color:#4e5969;list-style:none;}
-.mf-src summary::-webkit-details-marker{display:none;}
-.mf-src summary::before{content:'▸ ';color:#8f959e;}
-.mf-src[open] summary::before{content:'▾ ';}
 .mf-src-pre{margin:0;padding:8px 10px;border-radius:6px;background:#fff;border:1px solid #e5e6eb;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#1f2329;white-space:pre-wrap;word-break:break-word;max-height:280px;overflow:auto;tab-size:2;}
-@media print{.mf-btn,.mf-toast,.mf-dlg,.mf-src{display:none!important;}}
-`.trim()
-
-  if (!hasDual) {
-    return `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mermaid</title>
-<style>
-${cssCommon}
-.mf-diagram{display:flex;justify-content:center;width:100%;}
-</style>
-</head>
-<body>
-${srcScripts}
-<div class="mf-wrap">
-${copyBtn}
-<div class="mf-diagram">${primary}</div>
-${srcPanels}
-</div>
-${dialog}
-${copyScript}
-</body>
-</html>
-`
-  }
-
-  const cssDual = `
-.mf-wrap input[name="mf-dir"]{position:absolute;opacity:0;pointer-events:none;width:0;height:0;}
-.mf-pane{display:flex;justify-content:center;}
-.mf-pane-b{display:none;}
-.mf-src-a,.mf-src-b{display:none;}
-#mf-d-a:checked ~ .mf-flip[for="mf-d-b"]{display:inline-flex;align-items:center;}
-#mf-d-b:checked ~ .mf-flip[for="mf-d-a"]{display:inline-flex;align-items:center;}
-#mf-d-a:checked ~ .mf-pane-a{display:flex;}
-#mf-d-a:checked ~ .mf-pane-b{display:none;}
-#mf-d-b:checked ~ .mf-pane-a{display:none;}
-#mf-d-b:checked ~ .mf-pane-b{display:flex;}
-#mf-d-a:checked ~ .mf-src-a{display:block;}
-#mf-d-b:checked ~ .mf-src-b{display:block;}
-@media print{.mf-flip{display:none!important;}}
+@media print{.mf-toolbar,.mf-toast,.mf-dlg,.mf-src{display:none!important;}.mf-out{height:auto!important;overflow:visible;}.mf-out svg{position:static!important;transform:none!important;width:100%!important;height:auto!important;}}
 `.trim()
 
   return `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mermaid</title>
-<style>
-${cssCommon}
-${cssDual}
-</style>
-</head>
-<body>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mermaid</title><style>${cssCommon}</style>
+</head><body>
 ${srcScripts}
 <div class="mf-wrap">
-<input type="radio" name="mf-dir" id="mf-d-a" checked>
-<input type="radio" name="mf-dir" id="mf-d-b">
-${flipBtns}
-${copyBtn}
-<div class="mf-pane mf-pane-a">${primary}</div>
-<div class="mf-pane mf-pane-b">${secondary}</div>
+${hasDual ? '<input type="radio" name="mf-dir" id="mf-d-a" checked hidden><input type="radio" name="mf-dir" id="mf-d-b" hidden>' : ''}
+<div class="mf-toolbar"><div class="mf-tl">${flipBtn}<button type="button" class="mf-btn" id="mf-reset-view" title="恢复到 100% 并居中">100% · 重置</button></div>
+<div class="mf-tr">${editBtn}${source ? copyBtn : ''}</div></div>
 ${srcPanels}
+<div class="mf-out" id="mf-out"><div class="mf-pane">${primary}</div>${hasDual ? `<div class="mf-pane" hidden>${secondary}</div>` : ''}</div>
 </div>
 ${dialog}
 ${copyScript}
-</body>
-</html>
+${staticWidgetControls()}
+</body></html>
 `
 }
 
