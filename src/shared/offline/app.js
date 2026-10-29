@@ -86,6 +86,25 @@ function boot() {
       return false
     }
   }
+  // Fullscreen hosts may restore the preview with stale SVG/layout state.
+  // Recreate only the last rendered diagram after layout settles. Never save or
+  // apply a draft from the editor as a side effect of leaving fullscreen.
+  let wasFullscreen = !!document.fullscreenElement
+  let fullscreenFrame = 0
+  document.addEventListener('fullscreenchange', () => {
+    const active = !!document.fullscreenElement
+    const exited = wasFullscreen && !active
+    wasFullscreen = active
+    cancelAnimationFrame(fullscreenFrame)
+    if (!exited || !drawn) return
+    const revision = busy
+    fullscreenFrame = requestAnimationFrame(() => {
+      fullscreenFrame = requestAnimationFrame(() => {
+        if (!document.fullscreenElement && busy === revision) draw(drawn)
+      })
+    })
+  })
+
   function showWarn(list, err) {
     const items = (err ? [`<li class="mf-err">${esc(err)}</li>`] : []).concat(list.map((w) => `<li>${esc(w)}</li>`))
     warn.innerHTML = items.length ? `<b>${err ? '出错了' : '离线版提示'}</b><ul>${items.join('')}</ul>` : ''
