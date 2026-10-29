@@ -1,5 +1,5 @@
 // Preview interaction only: the rendered SVG and Mermaid source remain unchanged.
-export function createSvgViewport(container, resetButton) {
+export function createSvgViewport(container, resetButton, { zoomInButton = null, zoomOutButton = null } = {}) {
   const MIN_ZOOM = 0.25, MAX_ZOOM = 4
   const abort = new AbortController()
   const listen = (target, event, fn, options = {}) => target.addEventListener(event, fn, { ...options, signal: abort.signal })
@@ -11,6 +11,8 @@ export function createSvgViewport(container, resetButton) {
     svg.style.transform = `translate(${x}px, ${y}px) scale(${zoom})`
     resetButton.textContent = `${Math.round(zoom * 100)}% · 重置`
     resetButton.title = '恢复到 100% 并居中'
+    if (zoomInButton) zoomInButton.disabled = zoom >= MAX_ZOOM
+    if (zoomOutButton) zoomOutButton.disabled = zoom <= MIN_ZOOM
   }
   function reset() {
     endDrag()
@@ -37,6 +39,9 @@ export function createSvgViewport(container, resetButton) {
     endDrag()
     svg = next
     resetButton.hidden = !svg
+    for (const button of [zoomInButton, zoomOutButton]) {
+      if (button) { button.hidden = !svg; button.disabled = !svg }
+    }
     fit()
   }
   function endDrag() {
@@ -47,7 +52,7 @@ export function createSvgViewport(container, resetButton) {
     if (container.hasPointerCapture(id)) container.releasePointerCapture(id)
   }
   function zoomAt(value, clientX, clientY) {
-    if (!Number.isFinite(value) || value <= 0) return
+    if (!svg || !Number.isFinite(value) || value <= 0) return
     const next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, value))
     const rect = container.getBoundingClientRect()
     const ax = Number.isFinite(clientX) ? clientX - rect.left - container.clientLeft : container.clientWidth / 2
@@ -105,6 +110,18 @@ export function createSvgViewport(container, resetButton) {
     event.preventDefault()
     gesture = null
   }, { passive: false })
+  function zoomBy(factor) {
+    if (!svg || !Number.isFinite(factor) || factor <= 0) return
+    endDrag()
+    gesture = null
+    zoomAt(zoom * factor)
+  }
+  // Explicit ownership lets shared HTML wrappers skip their legacy wheel adapter.
+  for (const button of [zoomInButton, zoomOutButton]) {
+    if (button) button.dataset.mfZoomOwner = 'viewport'
+  }
+  if (zoomInButton) listen(zoomInButton, 'click', () => zoomBy(1.25))
+  if (zoomOutButton) listen(zoomOutButton, 'click', () => zoomBy(1 / 1.25))
   listen(resetButton, 'click', reset)
   listen(container, 'dblclick', (event) => {
     if (event.target.closest('svg text, svg foreignObject')) return
@@ -119,5 +136,10 @@ export function createSvgViewport(container, resetButton) {
     fit()
   })
   observer.observe(container)
-  return { setSvg, reset, dispose() { endDrag(); observer.disconnect(); abort.abort() } }
+  return { setSvg, reset, zoomBy, dispose() {
+    endDrag(); observer.disconnect(); abort.abort()
+    for (const button of [zoomInButton, zoomOutButton]) {
+      if (button) delete button.dataset.mfZoomOwner
+    }
+  } }
 }

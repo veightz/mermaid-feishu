@@ -42,7 +42,8 @@
   const minus = document.getElementById('mf-zoom-out');
   const plus = document.getElementById('mf-zoom-in');
   const zoom = (direction) => {
-    if (!out.querySelector('svg')) return;
+    const button = direction > 0 ? plus : minus;
+    if (button.dataset.mfZoomOwner === 'viewport' || !out.querySelector('svg')) return;
     const rect = out.getBoundingClientRect();
     out.dispatchEvent(new WheelEvent('wheel', {
       deltaY: -direction * Math.log(1.25) / 0.006,
@@ -53,7 +54,11 @@
   };
   minus.addEventListener('click', () => zoom(-1));
   plus.addEventListener('click', () => zoom(1));
-  const refresh = () => { minus.disabled = plus.disabled = !out.querySelector('svg'); };
+  const refresh = () => {
+    for (const button of [minus, plus]) {
+      if (button.dataset.mfZoomOwner !== 'viewport') button.disabled = !out.querySelector('svg');
+    }
+  };
   new MutationObserver(refresh).observe(out, { childList: true });
   refresh();
 })();
