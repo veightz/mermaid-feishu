@@ -4,10 +4,14 @@ import { createSvgViewport } from './offline/viewport.js'
 function initStaticWidget(createViewport) {
   const get = (id) => document.getElementById(id)
   const out = get('mf-out'), reset = get('mf-reset-view')
-  const viewport = createViewport(out, reset)
+  const viewport = createViewport(out, reset, { zoomInButton: get('mf-zoom-in'), zoomOutButton: get('mf-zoom-out') })
   const flip = get('mf-flip'), edit = get('mf-edit'), panel = get('mf-src')
   function show() {
     const alternate = get('mf-d-b')?.checked
+    if (flip) {
+      const target = alternate ? flip.dataset.primaryDir : flip.dataset.secondaryDir
+      flip.textContent = target === 'LR' || target === 'RL' ? '切换为横向' : '切换为纵向'
+    }
     const panes = out.querySelectorAll('.mf-pane')
     panes.forEach((pane, index) => { pane.hidden = index !== (alternate ? 1 : 0) })
     viewport.setSvg(out.querySelector('.mf-pane:not([hidden]) svg'))

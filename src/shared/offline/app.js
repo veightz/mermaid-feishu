@@ -41,7 +41,7 @@ function store() {
 function boot() {
   const out = $('mf-out'), warn = $('mf-warn'), ta = $('mf-ta'), msg = $('mf-msg'), flip = $('mf-flip')
   const cfg = JSON.parse($('mf-cfg').textContent || '{}')
-  const viewport = createSvgViewport(out, $('mf-reset-view'))
+  const viewport = createSvgViewport(out, $('mf-reset-view'), { zoomInButton: $('mf-zoom-in'), zoomOutButton: $('mf-zoom-out') })
   let original = $('mermaid-source').textContent.replace(/<\\\/(script)/gi, '</$1').replace(/<\\!--/g, '<!--')
   const KEY = 'mf-src-' + hash(original)
   const S = cfg.embed ? null : store() // 嵌入模式：由外层（飞书 HTML 块）负责保存
@@ -71,7 +71,7 @@ function boot() {
       out.innerHTML = sanitizeSvg(svg)
       viewport.setSvg(out.querySelector('svg'))
       drawn = src
-      flip.textContent = curDir(src) === 'LR' || curDir(src) === 'RL' ? 'LR → TB' : 'TB → LR'
+      flip.textContent = curDir(src) === 'LR' || curDir(src) === 'RL' ? '切换为纵向' : '切换为横向'
       flip.hidden = false
       showWarn(res.warnings)
       if (persist && cfg.embed) {

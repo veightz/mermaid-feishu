@@ -61,7 +61,7 @@ export function buildOfflineWidget(source, opts = {}) {
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mermaid</title>
 <style>${css}</style></head><body>
 <div class="mf${generic ? ' mf-gen' : ''}">
-<div class="mf-toolbar"><div class="mf-tl"><button type="button" class="mf-b" id="mf-flip" hidden title="切换走向并离线重新排版">LR / TB</button><button type="button" class="mf-b" id="mf-reset-view" hidden title="恢复原始缩放和位置">100% · 重置</button></div>
+<div class="mf-toolbar"><div class="mf-tl"><button type="button" class="mf-b" id="mf-flip" hidden title="切换走向并离线重新排版">切换方向</button><button type="button" class="mf-b" id="mf-zoom-out" title="缩小" aria-label="缩小" hidden disabled>−</button><button type="button" class="mf-b" id="mf-reset-view" hidden title="恢复原始缩放和位置">100% · 重置</button><button type="button" class="mf-b" id="mf-zoom-in" title="放大" aria-label="放大" hidden disabled>＋</button></div>
 <div class="mf-tr">${generic ? '<button type="button" class="mf-b" id="mf-edit" title="展开源码：粘贴 Mermaid 后重绘">编辑源码</button>' : ''}<button type="button" class="mf-b" id="mf-view" title="在新窗口打开可缩放的纯预览（需联网）">新窗口查看</button><button type="button" class="mf-b" id="mf-copy" title="复制 Mermaid 源码">Copy Mermaid</button></div></div>
 ${generic ? srcPanel(true, embed) : ''}<div class="mf-out" id="mf-out"><div class="mf-st" id="mf-st">正在离线排版…</div></div>
 <div class="mf-warn" id="mf-warn" hidden></div>

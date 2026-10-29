@@ -582,7 +582,7 @@ function inlineSvgForWidget(clean, bg) {
  * opts:
  *   primaryDir / secondaryDir — 流程图走向
  *   source / secondarySource — Mermaid 源码（嵌入 <script type="text/plain"> + 只读「源码」折叠面板）
- * 若传入 second（另一走向 SVG）：工具栏「LR / TB」切换图形并同步源码，恢复初始视图。
+ * 若传入 second（另一走向 SVG）：工具栏「切换为横向 / 切换为纵向」切换图形并同步源码，恢复初始视图。
  * 源码开关位于 Copy Mermaid 左侧；图形共用离线组件的缩放与平移交互。
  * 打印时隐藏工具栏与源码，恢复完整图形。
  */
@@ -604,7 +604,7 @@ export function buildHtmlWidget(clean, bg, second = null, opts = {}) {
   const secondary = hasDual ? inlineSvgForWidget(second, bg) : ''
 
   const copyBtn = `<button type="button" class="mf-btn mf-copy" id="mf-copy" title="复制当前可见图的 Mermaid 源码">Copy Mermaid</button>`
-  const flipBtn = hasDual ? `<button type="button" class="mf-btn" id="mf-flip" title="切换 ${escapeHtml(primaryDir)} / ${escapeHtml(secondaryDir)}">LR / TB</button>` : ''
+  const flipBtn = hasDual ? `<button type="button" class="mf-btn" id="mf-flip" data-primary-dir="${escapeHtml(primaryDir)}" data-secondary-dir="${escapeHtml(secondaryDir)}" title="切换布局方向">${secondaryDir === 'LR' || secondaryDir === 'RL' ? '切换为横向' : '切换为纵向'}</button>` : ''
   const editBtn = source ? '<button type="button" class="mf-btn" id="mf-edit" aria-controls="mf-src" aria-expanded="false">查看源码</button>' : ''
   const viewUrl = opts.viewUrl ? String(opts.viewUrl) : ''
   const viewBtn = viewUrl ? `<a class="mf-btn mf-view" id="mf-view" href="${escapeHtml(viewUrl)}" target="_blank" rel="noopener" title="在新窗口打开可缩放的纯预览（需联网）">新窗口查看</a>` : ''
@@ -718,7 +718,7 @@ body{font-family:${CJK_STACK};}
 ${srcScripts}
 <div class="mf-wrap">
 ${hasDual ? '<input type="radio" name="mf-dir" id="mf-d-a" checked hidden><input type="radio" name="mf-dir" id="mf-d-b" hidden>' : ''}
-<div class="mf-toolbar"><div class="mf-tl">${flipBtn}<button type="button" class="mf-btn" id="mf-reset-view" title="恢复到 100% 并居中">100% · 重置</button></div>
+<div class="mf-toolbar"><div class="mf-tl">${flipBtn}<button type="button" class="mf-btn" id="mf-zoom-out" title="缩小" aria-label="缩小" hidden disabled>−</button><button type="button" class="mf-btn" id="mf-reset-view" title="恢复到 100% 并居中">100% · 重置</button><button type="button" class="mf-btn" id="mf-zoom-in" title="放大" aria-label="放大" hidden disabled>＋</button></div>
 <div class="mf-tr">${editBtn}${viewBtn}${source ? copyBtn : ''}</div></div>
 ${srcPanels}
 <div class="mf-out" id="mf-out"><div class="mf-pane">${primary}</div>${hasDual ? `<div class="mf-pane" hidden>${secondary}</div>` : ''}</div>
