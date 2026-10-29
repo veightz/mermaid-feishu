@@ -116,6 +116,10 @@ export function createSvgViewport(container, resetButton, { zoomInButton = null,
     gesture = null
     zoomAt(zoom * factor)
   }
+  // Explicit ownership lets shared HTML wrappers skip their legacy wheel adapter.
+  for (const button of [zoomInButton, zoomOutButton]) {
+    if (button) button.dataset.mfZoomOwner = 'viewport'
+  }
   if (zoomInButton) listen(zoomInButton, 'click', () => zoomBy(1.25))
   if (zoomOutButton) listen(zoomOutButton, 'click', () => zoomBy(1 / 1.25))
   listen(resetButton, 'click', reset)
@@ -132,5 +136,10 @@ export function createSvgViewport(container, resetButton, { zoomInButton = null,
     fit()
   })
   observer.observe(container)
-  return { setSvg, reset, zoomBy, dispose() { endDrag(); observer.disconnect(); abort.abort() } }
+  return { setSvg, reset, zoomBy, dispose() {
+    endDrag(); observer.disconnect(); abort.abort()
+    for (const button of [zoomInButton, zoomOutButton]) {
+      if (button) delete button.dataset.mfZoomOwner
+    }
+  } }
 }

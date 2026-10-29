@@ -42,7 +42,7 @@ Host the generated HTML using your chosen provider. It accepts a UTF-8 base64url
 
 - Fullscreen runs only from a user click. Host denial produces a visible explanation, with a separate independent-view link when configured.
 - Independent viewing snapshots the current source. For sources above 20 KB, open the viewer and use copy/paste instead of a very long URL. The fragment is not access control and can remain in browser history.
-- Explicit zoom buttons adapt to the deployed wheel-zoom engine. They must not be combined with an engine that already binds the same buttons, or a click would zoom twice. When promoting native zoom support, remove the compatibility adapter in `assets/widget.html` at the same time as deploying that engine.
+- Explicit zoom buttons adapt to older wheel-zoom engines. Native engines mark their buttons with `data-mf-zoom-owner="viewport"`; the wrapper then skips its compatibility handlers and leaves disabled states to the engine. Before deploying a native engine, regenerate old wrappers that lack this ownership check to avoid double zoom.
 - The direction-label adapter translates old engine labels into readable Chinese labels; it leaves already-readable labels alone.
 - Regular wheel gestures scroll; Ctrl/Meta + wheel uses the engine's bounded centered zoom. Fullscreen and independent viewing keep the same engine.
 - Only flowchart/graph source is supported by this generator. Other diagram types belong to the site's corresponding rendering paths.
