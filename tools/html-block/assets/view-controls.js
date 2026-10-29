@@ -22,7 +22,7 @@
   toolbar.parentElement.after(notice);
   const message = text => { notice.textContent = text; };
   const style = document.createElement('style');
-  style.textContent = `.mf:fullscreen{background:#fff;overflow:auto;width:100%;height:100%;padding:16px 20px}.mf:fullscreen .mf-out,.mf-standalone .mf-out{height:var(--mf-view-height,70vh)!important}.mf-standalone{max-width:none;width:100%;padding:18px 24px}.mf-view-link{display:inline-block;text-decoration:none}.mf-view-head{font-size:19px;color:#1f2329;margin:0 0 12px;font-weight:600}`;
+  style.textContent = `.mf:fullscreen{background:#fff;overflow:auto;width:100%;height:100%;padding:16px 20px}.mf:fullscreen .mf-out,.mf-standalone .mf-out{height:var(--mf-view-height,70vh)!important}.mf:fullscreen .mf-out,.mf-standalone .mf-out{overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}.mf-standalone{max-width:none;width:100%;padding:18px 24px}.mf-view-link{display:inline-block;text-decoration:none}.mf-view-head{font-size:19px;color:#1f2329;margin:0 0 12px;font-weight:600}`;
   document.head.append(style);
   const full = document.createElement('button');
   full.className = 'mf-b'; full.type = 'button'; full.id = 'mf-fullscreen';
