@@ -117,3 +117,7 @@ npm run build    # 产物在 dist/
 - [Rosé Pine](https://github.com/rose-pine/rose-pine-palette) Dawn（MIT）：`rose-pine-dawn`
 - [Nord](https://www.nordtheme.com)（MIT）Snow Storm / Frost / Aurora：`nord-snow`
 - [Solarized](https://ethanschoonover.com/solarized/)（MIT）Light：`solarized-paper`
+
+### 共享引擎 HTML 块与独立查看器
+
+需要小体积、可编辑的 HTML 块，并复用已部署的引擎时，使用 [tools/html-block](tools/html-block/README.md)。包含全屏、独立查看、中文布局切换和缩放按钮；发布地址与文档配置由调用方提供。
