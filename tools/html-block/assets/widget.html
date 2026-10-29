@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="html-box-height-mode" content="auto"><title>Mermaid</title>
+<style>html,body{margin:0;background:#ffffff}body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC',sans-serif}[hidden]{display:none!important}
+.mf{box-sizing:border-box;width:100%;margin:0;padding:16px 12px;position:relative}
+.mf-b{position:absolute;z-index:2;top:10px;font:12px/1.2 -apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC',sans-serif;padding:5px 10px;border:1px solid rgba(51,112,255,.35);border-radius:6px;background:rgba(255,255,255,.82);color:#2b5cb8;cursor:pointer;backdrop-filter:blur(4px);box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.mf-b:hover{background:rgba(240,244,255,.95);border-color:#3370ff}
+#mf-flip{left:10px}#mf-copy{right:10px}
+.mf-out{min-height:60px;position:relative;overflow:hidden;border-radius:8px}.mf-out svg{user-select:none}.mf-panning,.mf-panning *{cursor:grabbing!important}.mf-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px}.mf-tl,.mf-tr{display:flex;gap:6px;flex-wrap:wrap}.mf-toolbar .mf-b{position:static}.mf-toolbar .mf-tr{position:static}
+.mf-st{padding:36px 0;text-align:center;color:#8f959e;font-size:13px}
+.mf-warn{margin:10px 0 0;padding:8px 12px;border:1px solid #f5d48a;background:#fffaeb;border-radius:8px;font-size:12px;color:#7a5a00}
+.mf-warn ul{margin:4px 0 0;padding-left:18px}.mf-err{color:#d83931}
+.mf-src{margin:12px 0 0;font-size:13px;color:#646a73;border:1px solid #e5e6eb;border-radius:8px;background:rgba(247,248,250,.9);padding:0 10px 8px}
+.mf-src summary{cursor:pointer;user-select:none;padding:8px 2px;font-weight:500;color:#4e5969}
+.mf-src textarea{display:block;width:100%;box-sizing:border-box;min-height:180px;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#1f2329;border:1px solid #e5e6eb;border-radius:6px;padding:8px 10px;resize:vertical;tab-size:2;background:#fff}
+.mf-row{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.mf-row button{font:13px -apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC',sans-serif;padding:4px 14px;border:1px solid #d0d3d9;border-radius:6px;background:#fff;cursor:pointer}
+#mf-go{background:#10a37f;border-color:#10a37f;color:#fff}
+#mf-msg{font-size:12px;color:#8f959e}
+.mf-tr{position:absolute;z-index:2;display:flex;gap:6px}.mf-tr .mf-b{position:static}
+.mf-gen .mf-src{margin:12px 0 12px;border-color:#10a37f;background:#f3fbf8;padding:0 10px 8px}
+.mf-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 2px;color:#0b7a5f}
+.mf-hd button{font:12px -apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC',sans-serif;padding:3px 10px;border:1px solid #d0d3d9;border-radius:6px;background:#fff;color:#4e5969;cursor:pointer}
+.mf-gen .mf-src textarea{min-height:150px}
+.mf-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:rgba(31,35,41,.92);color:#fff;padding:6px 14px;border-radius:8px;font-size:13px;z-index:9;pointer-events:none}
+@media print{.mf-toolbar,.mf-warn,.mf-src,.mf-toast{display:none!important}.mf-out{height:auto!important;overflow:visible}.mf-out svg{position:static!important;transform:none!important;width:100%!important;height:auto!important}}</style></head><body>
+<div class="mf mf-gen">
+<div class="mf-toolbar"><div class="mf-tl"><button type="button" class="mf-b" id="mf-flip" hidden title="切换横向或纵向布局">切换布局</button><button type="button" class="mf-b" id="mf-zoom-out" title="缩小" aria-label="缩小" disabled>−</button><button type="button" class="mf-b" id="mf-reset-view" hidden title="恢复原始缩放和位置">100% · 重置</button><button type="button" class="mf-b" id="mf-zoom-in" title="放大" aria-label="放大" disabled>＋</button></div>
+<div class="mf-tr"><button type="button" class="mf-b" id="mf-edit" title="展开源码：粘贴 Mermaid 后重绘">编辑源码</button><button type="button" class="mf-b" id="mf-copy" title="复制 Mermaid 源码">复制 Mermaid</button></div></div>
+<div class="mf-src" id="mf-src" hidden><div class="mf-hd"><b>粘贴 Mermaid 流程图，点「重绘」（⌘/Ctrl+Enter）</b><button type="button" id="mf-close">收起</button></div><textarea id="mf-ta" spellcheck="false" autocomplete="off" placeholder="flowchart LR&#10;  A[开始] --&gt; B{判断}"></textarea>
+<div class="mf-row"><button type="button" id="mf-go">重绘</button><button type="button" id="mf-clr">清空</button><button type="button" id="mf-rs">还原初始源码</button><span id="mf-msg"></span></div></div>
+<div class="mf-out" id="mf-out"><div class="mf-st" id="mf-st">正在离线排版…</div></div>
+<div class="mf-warn" id="mf-warn" hidden></div>
+</div>
+<script type="text/plain" id="mermaid-source">@@MERMAID_SOURCE@@</script>
+<script type="application/json" id="mf-cfg">@@CONFIG_JSON@@</script>
+<script>@@VIEW_CONTROLS@@</script>
+<script src="@@ENGINE_URL@@"></script>
+<script>
+// Compatibility adapter for shared engines exposing wheel zoom but no native button handlers.
+(() => {
+  const out = document.getElementById('mf-out');
+  const minus = document.getElementById('mf-zoom-out');
+  const plus = document.getElementById('mf-zoom-in');
+  const zoom = (direction) => {
+    if (!out.querySelector('svg')) return;
+    const rect = out.getBoundingClientRect();
+    out.dispatchEvent(new WheelEvent('wheel', {
+      deltaY: -direction * Math.log(1.25) / 0.006,
+      deltaMode: 0, ctrlKey: true, bubbles: true, cancelable: true,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2
+    }));
+  };
+  minus.addEventListener('click', () => zoom(-1));
+  plus.addEventListener('click', () => zoom(1));
+  const refresh = () => { minus.disabled = plus.disabled = !out.querySelector('svg'); };
+  new MutationObserver(refresh).observe(out, { childList: true });
+  refresh();
+})();
+</script>
+</body></html>
